@@ -1,0 +1,22 @@
+# Copy this file to terraform.tfvars and fill in actual values.
+# terraform.tfvars is gitignored -- DO NOT commit it.
+
+aws_region     = "ap-northeast-1"
+aws_account_id = "568970524613" # 個人プロダクト用アカウント (fvc / money-pilot と同一)
+project_name   = "skilllogger"
+
+# DB は EFS 上の SQLite（RDS 不使用）のため db_* は不要。
+django_secret_key = "CHANGE_ME_TO_RANDOM_STRING"
+s3_bucket_name    = "skilllogger-frontend"
+
+# Basic Auth (CloudFront) -- 現状 CloudFront Function は未関連付けだが値は必須
+basic_auth_user = "CHANGE_ME"
+basic_auth_pass = "CHANGE_ME"
+
+# GitHub Actions OIDC で AssumeRole を許可するリポジトリ (owner/repo)
+github_repository = "Akinori901/SkillLogger"
+# OIDC 信頼ポリシーの sub 条件。組織/リポで immutable ID を subject claim に含める設定が
+# 有効な場合、実 sub は repo:<owner>@<orgId>/<repo>@<repoId>:... 形式になる。
+# 実 sub は GitHub Actions の OIDC トークン claim で確認して設定する。
+# 通常設定なら "repo:<owner>/<repo>:*" のままでよい。
+github_deploy_subject_pattern = "repo:OWNER@ORGID/REPO@REPOID:*"
