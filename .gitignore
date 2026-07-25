@@ -1,0 +1,86 @@
+# ============================================================
+# SkillLogger .gitignore
+#   backend: Django + uv / frontend: React + Vite
+#   infra:   Terraform / Docker
+#   public 化前提のため秘匿情報は厳格に除外する
+# ============================================================
+
+# ------------------------------------------------------------
+# Python (backend / Django)
+# ------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# テスト / カバレッジ
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.cache
+.pytest_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# 型チェッカ
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# 環境 (uv の venv 等)
+.python-version
+.venv
+venv/
+env/
+ENV/
+
+# ------------------------------------------------------------
+# Node / フロントエンド (React + Vite)
+# ------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+*.tsbuildinfo
+
+# ------------------------------------------------------------
+# Terraform (秘匿情報・state)
+# ------------------------------------------------------------
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# ------------------------------------------------------------
+# 秘匿情報・データ (public 化前提のため厳格に除外)
+# ------------------------------------------------------------
+# 契約書・年収資料・面談用など非公開ドキュメントの置き場
+docs/no-push/
+_DATAS/
+*.pem
+*.key
+id_rsa
+id_rsa.*
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------------
+# OS / エディタ
+# ------------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/

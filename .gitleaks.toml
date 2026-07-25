@@ -1,0 +1,15 @@
+# gitleaks 設定 — public ミラー時の秘密スキャン用。
+# デフォルトルールを使い、allowlist は「誤検知の抑制」のみに使う。
+# ⚠️ 実際の秘密を通す目的で regex を追加しないこと。
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "誤検知の抑制（ローカル開発用の既知ダミー値など）"
+regexes = [
+  # ローカル開発の seed で作る既知の管理者パスワード（本番では使われない）
+  '''admin1234''',
+  # .env.example / docker-compose / settings のプレースホルダ・既定ダミー
+  '''(rootpassword|skill_password|change-this|CHANGE_ME|your-[a-z-]+)''',
+]
