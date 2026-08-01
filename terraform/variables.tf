@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "aws_account_id" {
-  description = "Target AWS account ID (personal products account: fvc / money-pilot と同一)"
+  description = "Target AWS account ID"
   type        = string
 }
 
@@ -29,6 +29,37 @@ variable "s3_bucket_name" {
   default     = "skilllogger-frontend"
 }
 
+# -----------------------------------------------------------------------------
+# Cognito 認証（共通基盤 qol-user-pool）
+# -----------------------------------------------------------------------------
+# 値は qol-user-pool の `terraform output` から取得して tfvars に設定する。
+# Pool ID / Client ID / domain prefix は公開情報だが、運用の一貫性のため tfvars で管理する。
+
+variable "cognito_user_pool_id" {
+  description = "Cognito User Pool ID（qol-user-pool の user_pool_id）"
+  type        = string
+  default     = ""
+}
+
+variable "cognito_web_client_id" {
+  description = "Cognito App Client ID（qol-user-pool の skilllogger_web_client_id）"
+  type        = string
+  default     = ""
+}
+
+variable "cognito_domain_prefix" {
+  description = "Cognito Hosted UI ドメイン prefix（qol-user-pool の domain_prefix、例: qol-auth）"
+  type        = string
+  default     = ""
+}
+
+variable "initial_admin_email" {
+  description = "初期管理者メール（seed が m_user_allowed_emails に登録。締め出し防止。qol-user-pool と一致させる）"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "basic_auth_user" {
   description = "Basic auth username for CloudFront"
   type        = string
@@ -49,7 +80,7 @@ variable "basic_auth_pass" {
 variable "github_repository" {
   description = "GitHub repository allowed to assume the deploy role (owner/repo)"
   type        = string
-  default     = "Akinori901/SkillLogger"
+  default     = "your-org/your-repo"
 }
 
 # 信頼ポリシーの sub 条件パターン。
@@ -57,9 +88,9 @@ variable "github_repository" {
 # 有効なため、実際の sub は `repo:<owner>@<orgId>/<repo>@<repoId>:...` 形式になる。
 # 通常の `repo:owner/repo:*` ではマッチしないため、実 ID を含むパターンを tfvars で注入する。
 # ID はアカウント固有情報なのでコードにハードコードせず tfvars(gitignore) に置く。
-# 実 sub は OIDC トークンの claim で確認する（例: repo:Akinori901@80678496/SkillLogger@1310786215:*）。
+# 実 sub は OIDC トークンの claim で確認する（例: repo:<owner>/<repo>:*）。
 variable "github_deploy_subject_pattern" {
   description = "StringLike pattern for token.actions.githubusercontent.com:sub (supports immutable-ID subjects)"
   type        = string
-  default     = "repo:Akinori901/SkillLogger:*"
+  default     = "repo:your-org/your-repo:*"
 }

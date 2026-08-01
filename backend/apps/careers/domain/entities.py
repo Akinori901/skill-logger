@@ -24,6 +24,34 @@ ACHIEVEMENT_CATEGORIES = (
     "review",  # レビュー体制改善
 )
 
+# 担当工程（案件で担当した開発フェーズ。職務経歴書の「担当工程」に対応）
+ENGAGEMENT_PHASES = (
+    "req",  # 要件定義
+    "basic",  # 基本設計
+    "detail",  # 詳細設計
+    "backend",  # Back実装
+    "frontend",  # Front実装
+    "test",  # テスト
+    "research",  # 調査
+    "refactor",  # リファクタ
+)
+
+# 雇用形態（契約種別）
+CONTRACT_TYPES = (
+    "contract",  # 請負
+    "quasi",  # 準委任
+    "dispatch",  # 派遣
+)
+
+# 技術の種別（tech_categorized のキー）
+TECH_CATEGORIES = (
+    "language",  # 言語
+    "db",  # DB
+    "framework",  # フレームワーク
+    "cloud",  # クラウド
+    "tool",  # ツール
+)
+
 
 @dataclass
 class AchievementEntity:
@@ -76,7 +104,30 @@ class EngagementEntity:
     responsibilities: str = ""
     tech_stack: list[str] = field(default_factory=list)
     challenges: str = ""
-    is_public: bool = False  # 匿名化制御（public 出力時に企業名を伏せるか）
+    # 担当した開発工程（ENGAGEMENT_PHASES のコード配列）
+    phases: list[str] = field(default_factory=list)
+    # 雇用形態（CONTRACT_TYPES のいずれか。未設定は空）
+    contract_type: str = ""
+    # 技術の種別分離（TECH_CATEGORIES をキーとする配列 dict）。
+    # 既存 tech_stack(flat) は温存し、集計/PDF は categorized 優先→flat フォールバック。
+    tech_categorized: dict[str, list[str]] = field(default_factory=dict)
+    # 技術ごとの関与度の重み（技術名→0.0〜1.0）。skill-inventory の言語比率(pct)や
+    # フレームワークの主要度から算出し、スキル経験年数の集計で期間に掛ける。
+    # 空 dict の技術は重み1.0扱い（前方互換: 未設定の既存案件は従来どおりフルカウント）。
+    tech_weights: dict[str, float] = field(default_factory=dict)
+    # git集計に出ない実務技術の手動補完（技術名→年数）。pandas 等のライブラリ的利用は
+    # コミット行に現れず言語集計で0になるため、実務利用年数を最小保証として加算する。
+    manual_skills: dict[str, float] = field(default_factory=dict)
+    # 案件で使った技術のバージョン（技術名→版）。「Laravel 8.12」等を案件詳細に出す。
+    tech_versions: dict[str, str] = field(default_factory=dict)
+    # 採用したアーキテクチャ構造（案件詳細に層図を出す）。
+    # 形式: {"name": "クリーンアーキテクチャ（4層・DDD志向）",
+    #        "layers": ["Presentation", "Application（UseCase）", "Domain（Entities）", "Infrastructure"]}
+    # 空 dict の案件は層図を出さない。リポ構造で採用実態を確認したものだけ付与する。
+    architecture: dict[str, object] = field(default_factory=dict)
+    # 実績・取り組みの作文（Gemini 生成 or 手入力）。事実の responsibilities とは別。
+    narrative: str = ""
+    is_public: bool = False  # 匿名化制御（public 出力時に企業名を伏せるか。公開可＝匿名前提）
     display_order: int = 0
     achievements: list[AchievementEntity] = field(default_factory=list)
     urls: list[EngagementUrlEntity] = field(default_factory=list)
@@ -94,3 +145,31 @@ class SupportDomainEntity:
     name: str
     display_order: int = 0
     id: int | None = None
+
+
+@dataclass
+class UserProfileEntity:
+    """職務経歴書のサマリ（ユーザー単位のプロフィール）。
+
+    事実（display_name/age_range/residence/headline）と、
+    作文（summary/strengths/good_at、Gemini 生成 or 手入力）を分けて持つ。
+    ai_usage は生成AI活用の記録 [{"tool","how","effect"}]（effect は作文）。
+    スキル別経験年数は保持せず、案件の tech × period から都度集計する
+    （事実の単一ソースを案件に置き、二重管理を避ける）。
+    """
+
+    user_id: int
+    # --- 事実（手入力） ---
+    display_name: str = ""  # 氏名（PDF 表示名）
+    age_range: str = ""  # 年代 "30代" 等（生年は持たない=匿名性）
+    residence: str = ""  # 居住地 "東京都" 等
+    headline: str = ""  # 希望ポジション/肩書
+    # --- 作文（Gemini 生成 or 手入力、編集可） ---
+    summary: str = ""  # 職務要約
+    strengths: str = ""  # 自己PR: 強み
+    good_at: str = ""  # 自己PR: 得意業務
+    # --- 生成AI活用（tool/how は事実、effect は作文） ---
+    ai_usage: list[dict[str, str]] = field(default_factory=list)  # [{"tool","how","effect"}]
+    id: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

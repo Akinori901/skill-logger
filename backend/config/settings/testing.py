@@ -4,12 +4,8 @@ from .base import *  # noqa: F401, F403
 
 DEBUG = True
 
-# テスト用DB（MySQLのまま、テスト実行時に自動作成）
-DATABASES["default"]["TEST"] = {  # noqa: F405
-    "NAME": "test_skill_logger",
-    "CHARSET": "utf8mb4",
-    "COLLATION": "utf8mb4_unicode_ci",
-}
+# テスト用DB: SQLite をインメモリで動かし高速化する（本番と同じ SQLite エンジン）。
+DATABASES["default"]["TEST"] = {"NAME": ":memory:"}  # noqa: F405
 
 # テスト高速化: パスワードハッシュを軽量化
 PASSWORD_HASHERS = [

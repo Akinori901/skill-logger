@@ -1,5 +1,5 @@
-.PHONY: help up down build logs logs-backend logs-frontend logs-db restart ps \
-       backend-shell frontend-shell mysql \
+.PHONY: help up down build logs logs-backend logs-frontend restart ps \
+       backend-shell frontend-shell dbshell \
        migrate makemigrations seed test-backend lint format format-check type-check quality \
        test-frontend lint-frontend build-frontend setup
 
@@ -28,9 +28,6 @@ logs-backend: ## バックエンドのログ表示
 logs-frontend: ## フロントエンドのログ表示
 	docker compose logs -f frontend
 
-logs-db: ## DBのログ表示
-	docker compose logs -f db
-
 restart: ## 全コンテナ再起動
 	docker compose restart
 
@@ -47,8 +44,8 @@ backend-shell: ## バックエンドコンテナに入る
 frontend-shell: ## フロントエンドコンテナに入る
 	docker compose exec frontend sh
 
-mysql: ## MySQLに接続
-	docker compose exec db mysql -uskill_user -pskill_password skill_logger
+dbshell: ## SQLite に接続（Django dbshell）
+	docker compose exec backend uv run python manage.py dbshell
 
 # ===========================
 # Backend

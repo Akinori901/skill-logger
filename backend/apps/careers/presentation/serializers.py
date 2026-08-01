@@ -12,10 +12,14 @@ from rest_framework import serializers
 
 from apps.careers.domain.entities import (
     ACHIEVEMENT_CATEGORIES,
+    CONTRACT_TYPES,
+    ENGAGEMENT_PHASES,
+    TECH_CATEGORIES,
     AchievementEntity,
     EngagementDomainLink,
     EngagementEntity,
     EngagementUrlEntity,
+    UserProfileEntity,
 )
 
 
@@ -61,6 +65,18 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
     responsibilities = serializers.CharField(required=False, allow_blank=True, default="")
     tech_stack = serializers.ListField(child=serializers.CharField(max_length=50), required=False, default=list)
     challenges = serializers.CharField(required=False, allow_blank=True, default="")
+    phases = serializers.ListField(
+        child=serializers.ChoiceField(choices=ENGAGEMENT_PHASES), required=False, default=list
+    )
+    contract_type = serializers.ChoiceField(
+        choices=CONTRACT_TYPES, required=False, allow_blank=True, default=""
+    )
+    tech_categorized = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField(max_length=50)),
+        required=False,
+        default=dict,
+    )
+    narrative = serializers.CharField(required=False, allow_blank=True, default="")
     is_public = serializers.BooleanField(required=False, default=False)
     display_order = serializers.IntegerField(required=False, default=0)
     achievements = AchievementSerializer(many=True, required=False, default=list)
@@ -68,6 +84,15 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
     domain_links = EngagementDomainLinkSerializer(many=True, required=False, default=list)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+
+    def validate_tech_categorized(self, value: dict[str, list[str]]) -> dict[str, list[str]]:
+        """技術種別のキーは TECH_CATEGORIES のみ許可する。"""
+        unknown = set(value) - set(TECH_CATEGORIES)
+        if unknown:
+            raise serializers.ValidationError(
+                f"未知の技術種別です: {', '.join(sorted(unknown))}（許可: {', '.join(TECH_CATEGORIES)}）"
+            )
+        return value
 
     def to_entity(self, user_id: int) -> EngagementEntity:
         """バリデーション済み data → EngagementEntity。"""
@@ -87,6 +112,10 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             responsibilities=d.get("responsibilities", ""),
             tech_stack=list(d.get("tech_stack", [])),
             challenges=d.get("challenges", ""),
+            phases=list(d.get("phases", [])),
+            contract_type=d.get("contract_type", ""),
+            tech_categorized={k: list(v) for k, v in d.get("tech_categorized", {}).items()},
+            narrative=d.get("narrative", ""),
             is_public=d.get("is_public", False),
             display_order=d.get("display_order", 0),
             achievements=[
@@ -130,6 +159,10 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             "responsibilities": entity.responsibilities,
             "tech_stack": entity.tech_stack,
             "challenges": entity.challenges,
+            "phases": entity.phases,
+            "contract_type": entity.contract_type,
+            "tech_categorized": entity.tech_categorized,
+            "narrative": entity.narrative,
             "is_public": entity.is_public,
             "display_order": entity.display_order,
             "created_at": entity.created_at,
@@ -159,3 +192,58 @@ class SupportDomainSerializer(serializers.Serializer[dict[str, Any]]):
     code = serializers.CharField()
     name = serializers.CharField()
     display_order = serializers.IntegerField()
+
+
+class AiUsageItemSerializer(serializers.Serializer[dict[str, Any]]):
+    """生成AI活用の1項目（ツール/組み込み方/効果）。"""
+
+    tool = serializers.CharField(max_length=100, allow_blank=True, default="")
+    how = serializers.CharField(allow_blank=True, default="")
+    effect = serializers.CharField(allow_blank=True, default="")
+
+
+class UserProfileSerializer(serializers.Serializer[dict[str, Any]]):
+    """職務経歴書サマリの read/write 共用 Serializer。"""
+
+    display_name = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    age_range = serializers.CharField(max_length=20, required=False, allow_blank=True, default="")
+    residence = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    headline = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    summary = serializers.CharField(required=False, allow_blank=True, default="")
+    strengths = serializers.CharField(required=False, allow_blank=True, default="")
+    good_at = serializers.CharField(required=False, allow_blank=True, default="")
+    ai_usage = AiUsageItemSerializer(many=True, required=False, default=list)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    def to_entity(self, user_id: int) -> UserProfileEntity:
+        d = self.validated_data
+        return UserProfileEntity(
+            user_id=user_id,
+            display_name=d.get("display_name", ""),
+            age_range=d.get("age_range", ""),
+            residence=d.get("residence", ""),
+            headline=d.get("headline", ""),
+            summary=d.get("summary", ""),
+            strengths=d.get("strengths", ""),
+            good_at=d.get("good_at", ""),
+            ai_usage=[
+                {"tool": u.get("tool", ""), "how": u.get("how", ""), "effect": u.get("effect", "")}
+                for u in d.get("ai_usage", [])
+            ],
+        )
+
+    @staticmethod
+    def entity_to_dict(entity: UserProfileEntity) -> dict[str, Any]:
+        return {
+            "display_name": entity.display_name,
+            "age_range": entity.age_range,
+            "residence": entity.residence,
+            "headline": entity.headline,
+            "summary": entity.summary,
+            "strengths": entity.strengths,
+            "good_at": entity.good_at,
+            "ai_usage": entity.ai_usage,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        }

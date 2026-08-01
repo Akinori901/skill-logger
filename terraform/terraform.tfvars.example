@@ -2,7 +2,7 @@
 # terraform.tfvars is gitignored -- DO NOT commit it.
 
 aws_region     = "ap-northeast-1"
-aws_account_id = "568970524613" # 個人プロダクト用アカウント (fvc / money-pilot と同一)
+aws_account_id = "123456789012" # デプロイ先の AWS アカウント ID
 project_name   = "skilllogger"
 
 # DB は EFS 上の SQLite（RDS 不使用）のため db_* は不要。
@@ -13,8 +13,16 @@ s3_bucket_name    = "skilllogger-frontend"
 basic_auth_user = "CHANGE_ME"
 basic_auth_pass = "CHANGE_ME"
 
+# Cognito 認証（共通基盤 qol-user-pool の terraform output より）
+# 空のままだと認証は無効（CognitoJWTAuthentication が常に None を返す）。
+cognito_user_pool_id  = "ap-northeast-1_xxxxxxxxx"
+cognito_web_client_id = "xxxxxxxxxxxxxxxxxxxxxxxxxx"
+cognito_domain_prefix = "qol-auth"
+# 初期管理者メール（seed が m_user_allowed_emails に登録。締め出し防止）。
+initial_admin_email = "you@example.com"
+
 # GitHub Actions OIDC で AssumeRole を許可するリポジトリ (owner/repo)
-github_repository = "Akinori901/SkillLogger"
+github_repository = "your-org/your-repo"
 # OIDC 信頼ポリシーの sub 条件。組織/リポで immutable ID を subject claim に含める設定が
 # 有効な場合、実 sub は repo:<owner>@<orgId>/<repo>@<repoId>:... 形式になる。
 # 実 sub は GitHub Actions の OIDC トークン claim で確認して設定する。

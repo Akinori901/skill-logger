@@ -9,7 +9,7 @@ from django.db import models
 class AiConfig(models.Model):
     """m_user_ai_configs — ユーザー単位の LLM API 設定。
 
-    API キーは平文保存（fair-value apps/ai と同方式）。public リポには
+    API キーは平文保存。public リポには
     実キーを含めない（DB のみに存在）。
     """
 

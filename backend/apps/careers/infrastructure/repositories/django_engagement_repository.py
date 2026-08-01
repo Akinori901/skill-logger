@@ -27,6 +27,14 @@ from apps.careers.infrastructure.models import (
 class DjangoEngagementRepository(EngagementRepository):
     def find_by_user(self, user_id: int) -> list[EngagementEntity]:
         rows = Engagement.objects.filter(user_id=user_id).prefetch_related("achievements", "urls", "domain_links").all()
+        # 案件は「終了年月(period_end)の降順 = 新しい順」で返す。
+        # period_end は "YYYY-MM" 文字列。空("")は「現在も継続中」なので最新扱いで先頭に置く。
+        # PDF/一覧とも本メソッドの取得順をそのまま使うため、並び順はここに一元化する。
+        rows = sorted(
+            rows,
+            key=lambda r: (r.period_end or "9999-99", r.period_start or ""),
+            reverse=True,
+        )
         return [self._to_entity(row) for row in rows]
 
     def find_by_id(self, engagement_id: int, user_id: int) -> EngagementEntity | None:
@@ -74,6 +82,14 @@ class DjangoEngagementRepository(EngagementRepository):
         row.responsibilities = entity.responsibilities
         row.tech_stack = entity.tech_stack
         row.challenges = entity.challenges
+        row.phases = entity.phases
+        row.contract_type = entity.contract_type
+        row.tech_categorized = entity.tech_categorized
+        row.tech_weights = entity.tech_weights
+        row.manual_skills = entity.manual_skills
+        row.tech_versions = entity.tech_versions
+        row.architecture = entity.architecture
+        row.narrative = entity.narrative
         row.is_public = entity.is_public
         row.display_order = entity.display_order
         row.save()
@@ -135,6 +151,14 @@ class DjangoEngagementRepository(EngagementRepository):
             responsibilities=row.responsibilities,
             tech_stack=list(row.tech_stack or []),
             challenges=row.challenges,
+            phases=list(row.phases or []),
+            contract_type=row.contract_type,
+            tech_categorized=dict(row.tech_categorized or {}),
+            tech_weights=dict(row.tech_weights or {}),
+            manual_skills=dict(row.manual_skills or {}),
+            tech_versions=dict(row.tech_versions or {}),
+            architecture=dict(row.architecture or {}),
+            narrative=row.narrative,
             is_public=row.is_public,
             display_order=row.display_order,
             created_at=row.created_at,

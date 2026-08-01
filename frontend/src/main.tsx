@@ -1,3 +1,9 @@
+// Amplify の configure は副作用 import で行う。他の import より先に評価される
+// 必要があるため最先頭に置く（順序 load-bearing）。
+import "./auth/amplify-config";
+// Hub listener は Amplify.configure() の後に登録する必要があるので直後に置く。
+import "./auth/auth-hub-listener";
+
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";

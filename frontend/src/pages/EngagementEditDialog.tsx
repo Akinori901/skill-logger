@@ -1,6 +1,8 @@
 import AddIcon from "@mui/icons-material/Add";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import DeleteIcon from "@mui/icons-material/Delete";
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -19,9 +21,14 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { generationApi } from "../api/generation";
 import { useSaveEngagement, useSupportDomains } from "../hooks/useEngagements";
+import { useAiConfig } from "../hooks/useGeneration";
 import {
   ACHIEVEMENT_CATEGORY_LABELS,
+  CONTRACT_TYPES,
+  ENGAGEMENT_PHASES,
+  TECH_CATEGORIES,
   type Achievement,
   type AchievementCategory,
   type Engagement,
@@ -46,6 +53,10 @@ const EMPTY: Engagement = {
   responsibilities: "",
   challenges: "",
   tech_stack: [],
+  phases: [],
+  contract_type: "",
+  tech_categorized: {},
+  narrative: "",
   achievements: [],
   urls: [],
   domain_links: [],
@@ -54,14 +65,66 @@ const EMPTY: Engagement = {
 
 export default function EngagementEditDialog({ open, engagement, onClose }: Props) {
   const { data: domains = [] } = useSupportDomains();
+  const { data: aiConfig } = useAiConfig();
   const save = useSaveEngagement();
   const [form, setForm] = useState<Engagement>(EMPTY);
   const [techInput, setTechInput] = useState("");
+  // 技術種別ごとの入力中文字列（言語/DB/FW/クラウド/ツール）
+  const [catInputs, setCatInputs] = useState<Record<string, string>>({});
+  const [genField, setGenField] = useState<"industry" | "overview" | "narrative" | null>(null);
+  const [batchFilling, setBatchFilling] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const aiReady = Boolean(aiConfig?.is_enabled && aiConfig?.api_key);
 
   useEffect(() => {
     setForm(engagement ? { ...EMPTY, ...engagement } : EMPTY);
     setTechInput("");
+    setCatInputs({});
+    setGenError(null);
   }, [engagement, open]);
+
+  const generateField = async (field: "industry" | "overview" | "narrative") => {
+    if (!form.id) return;
+    setGenError(null);
+    setGenField(field);
+    try {
+      const text = await generationApi.generateEngagementField(form.id, field, { persist: false });
+      set(field, text);
+    } catch (e) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "生成に失敗しました。AI設定を確認してください。";
+      setGenError(detail);
+    } finally {
+      setGenField(null);
+    }
+  };
+
+  // 空欄の業界/概要/実績をまとめてGeminiで生成する（下書き埋め）。
+  // 既に値がある欄は上書きしない（手入力を保護）。
+  const fillEmptyFields = async () => {
+    if (!form.id) return;
+    setGenError(null);
+    setBatchFilling(true);
+    const targets: ("industry" | "overview" | "narrative")[] = ["industry", "overview", "narrative"];
+    try {
+      for (const field of targets) {
+        if ((form[field] ?? "").toString().trim()) continue; // 既存値ありはスキップ
+        setGenField(field);
+        const text = await generationApi.generateEngagementField(form.id, field, { persist: false });
+        set(field, text);
+      }
+    } catch (e) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
+        "生成に失敗しました。AI設定を確認してください。";
+      setGenError(detail);
+    } finally {
+      setGenField(null);
+      setBatchFilling(false);
+    }
+  };
 
   const set = <K extends keyof Engagement>(key: K, value: Engagement[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -72,6 +135,26 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
       set("tech_stack", [...(form.tech_stack ?? []), v]);
     }
     setTechInput("");
+  };
+
+  const togglePhase = (code: string) => {
+    const cur = form.phases ?? [];
+    set("phases", cur.includes(code) ? cur.filter((c) => c !== code) : [...cur, code]);
+  };
+
+  const addCategorizedTech = (cat: string) => {
+    const v = (catInputs[cat] ?? "").trim();
+    const cur = form.tech_categorized ?? {};
+    const list = cur[cat] ?? [];
+    if (v && !list.includes(v)) {
+      set("tech_categorized", { ...cur, [cat]: [...list, v] });
+    }
+    setCatInputs((s) => ({ ...s, [cat]: "" }));
+  };
+
+  const removeCategorizedTech = (cat: string, value: string) => {
+    const cur = form.tech_categorized ?? {};
+    set("tech_categorized", { ...cur, [cat]: (cur[cat] ?? []).filter((t) => t !== value) });
   };
 
   const addAchievement = () =>
@@ -132,6 +215,29 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               required
             />
           </Grid>
+          {form.id && (
+            <Grid item xs={12}>
+              <Button
+                variant="outlined"
+                startIcon={<AutoAwesomeIcon />}
+                onClick={fillEmptyFields}
+                disabled={!aiReady || batchFilling || genField !== null}
+                fullWidth
+              >
+                {batchFilling ? "空欄を生成中..." : "空欄（業界・概要・実績）をまとめてGeminiで生成"}
+              </Button>
+              {!aiReady && (
+                <Typography variant="caption" color="text.secondary">
+                  ※ 右上メニューの「AI設定」でGeminiキーを登録すると使えます。既に入力済みの欄は上書きしません。
+                </Typography>
+              )}
+              {genError && (
+                <Alert severity="error" sx={{ mt: 1 }} onClose={() => setGenError(null)}>
+                  {genError}
+                </Alert>
+              )}
+            </Grid>
+          )}
           <Grid item xs={12} sm={6}>
             <TextField
               label="業界"
@@ -140,6 +246,15 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               fullWidth
               placeholder="SaaS / 製造 / 金融 など"
             />
+            <Button
+              startIcon={<AutoAwesomeIcon />}
+              size="small"
+              sx={{ mt: 0.5 }}
+              disabled={!form.id || !aiReady || genField !== null}
+              onClick={() => generateField("industry")}
+            >
+              {genField === "industry" ? "生成中..." : "Geminiで推定"}
+            </Button>
           </Grid>
           <Grid item xs={12} sm={6}>
             <TextField
@@ -187,7 +302,7 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               placeholder="2025-03"
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <TextField
               label="ポジション"
               value={form.position}
@@ -196,6 +311,45 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               placeholder="テックリード / PM補佐 など"
             />
           </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              select
+              label="雇用形態"
+              value={form.contract_type ?? ""}
+              onChange={(e) => set("contract_type", e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">未設定</MenuItem>
+              {CONTRACT_TYPES.map((c) => (
+                <MenuItem key={c.code} value={c.code}>
+                  {c.label}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+
+          {/* 担当工程（担当したフェーズをチェック） */}
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" gutterBottom>
+              担当工程
+            </Typography>
+            <Stack direction="row" flexWrap="wrap" sx={{ gap: 0 }}>
+              {ENGAGEMENT_PHASES.map((p) => (
+                <FormControlLabel
+                  key={p.code}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={(form.phases ?? []).includes(p.code)}
+                      onChange={() => togglePhase(p.code)}
+                    />
+                  }
+                  label={p.label}
+                />
+              ))}
+            </Stack>
+          </Grid>
+
           <Grid item xs={12}>
             <TextField
               label="プロジェクト概要"
@@ -205,6 +359,15 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               multiline
               minRows={2}
             />
+            <Button
+              startIcon={<AutoAwesomeIcon />}
+              size="small"
+              sx={{ mt: 0.5 }}
+              disabled={!form.id || !aiReady || genField !== null}
+              onClick={() => generateField("overview")}
+            >
+              {genField === "overview" ? "生成中..." : "Geminiで生成"}
+            </Button>
           </Grid>
           <Grid item xs={12}>
             <TextField
@@ -225,6 +388,41 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               multiline
               minRows={2}
             />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="実績・取り組み（職務経歴書に載せる文章）"
+              value={form.narrative ?? ""}
+              onChange={(e) => set("narrative", e.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+              placeholder="事実（概要・担当・技術・成果）をもとに文章化します。"
+            />
+            <Button
+              startIcon={<AutoAwesomeIcon />}
+              size="small"
+              sx={{ mt: 0.5 }}
+              disabled={!form.id || !aiReady || genField !== null}
+              onClick={() => generateField("narrative")}
+            >
+              {genField === "narrative" ? "生成中..." : "Geminiで生成"}
+            </Button>
+            {!form.id && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                （案件を保存すると生成できます）
+              </Typography>
+            )}
+            {!aiReady && form.id && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                （AI設定でGeminiキーを登録すると生成できます）
+              </Typography>
+            )}
+            {genError && (
+              <Alert severity="error" sx={{ mt: 1 }} onClose={() => setGenError(null)}>
+                {genError}
+              </Alert>
+            )}
           </Grid>
 
           {/* 技術スタック（タグ入力） */}
@@ -256,6 +454,46 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
               size="small"
               placeholder="AWS / Laravel / Vue など"
             />
+          </Grid>
+
+          {/* 技術の種別分離（任意。職務経歴書で 言語/DB/FW/クラウド/ツール に分けて表示） */}
+          <Grid item xs={12}>
+            <Divider sx={{ mb: 1 }} />
+            <Typography variant="subtitle2" gutterBottom>
+              技術を種別で分ける（任意・職務経歴書で分類表示）
+            </Typography>
+            <Stack spacing={1}>
+              {TECH_CATEGORIES.map((cat) => (
+                <Box key={cat.code}>
+                  <Typography variant="caption" color="text.secondary">
+                    {cat.label}
+                  </Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ gap: 0.5, mb: 0.5 }}>
+                    {((form.tech_categorized ?? {})[cat.code] ?? []).map((t) => (
+                      <Chip
+                        key={t}
+                        size="small"
+                        label={t}
+                        onDelete={() => removeCategorizedTech(cat.code, t)}
+                      />
+                    ))}
+                  </Stack>
+                  <TextField
+                    label={`${cat.label}を追加（Enter）`}
+                    value={catInputs[cat.code] ?? ""}
+                    onChange={(e) => setCatInputs((s) => ({ ...s, [cat.code]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCategorizedTech(cat.code);
+                      }
+                    }}
+                    size="small"
+                    fullWidth
+                  />
+                </Box>
+              ))}
+            </Stack>
           </Grid>
 
           {/* 成果（数字付き） */}

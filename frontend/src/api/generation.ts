@@ -29,4 +29,45 @@ export const generationApi = {
     const { data } = await apiClient.get("/generation/engagements/markdown/", { params });
     return data.markdown;
   },
+  /** 職務経歴書＋スキルシートを1つのPDFとして取得する（バイナリ）。
+   * anonymize=true（既定）で企業名を伏せ、業界＋規模で代替する。 */
+  exportPdf: async (ids?: number[], anonymize = true): Promise<Blob> => {
+    const params: Record<string, string> = { anonymize: String(anonymize) };
+    if (ids && ids.length) params.ids = ids.join(",");
+    const { data } = await apiClient.get("/generation/engagements/pdf/", {
+      params,
+      responseType: "blob",
+    });
+    return data;
+  },
+  /** プロフィールの作文（職務要約/自己PR/AI効果）を Gemini で生成する。 */
+  generateProfileNarrative: async (
+    kind: "summary" | "strengths" | "good_at" | "ai_effect",
+    persist = false,
+  ): Promise<string> => {
+    const { data } = await apiClient.post("/generation/profile/narrative/", { kind, persist });
+    return data.text;
+  },
+  /** 案件の実績・取り組み文を Gemini で生成する。 */
+  generateEngagementNarrative: async (engagementId: number, persist = false): Promise<string> => {
+    const { data } = await apiClient.post(
+      `/generation/engagements/${engagementId}/narrative/`,
+      { persist },
+    );
+    return data.text;
+  },
+  /** 案件の単一フィールド（業界/概要/実績）を Gemini で生成する。
+   * only_if_empty=true で既存値があるフィールドはスキップ（一括自動埋め用）。 */
+  generateEngagementField: async (
+    engagementId: number,
+    field: "industry" | "overview" | "narrative",
+    opts: { persist?: boolean; onlyIfEmpty?: boolean } = {},
+  ): Promise<string> => {
+    const { data } = await apiClient.post(`/generation/engagements/${engagementId}/field/`, {
+      field,
+      persist: opts.persist ?? false,
+      only_if_empty: opts.onlyIfEmpty ?? false,
+    });
+    return data.text;
+  },
 };
