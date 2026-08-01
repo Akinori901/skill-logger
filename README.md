@@ -52,8 +52,8 @@ make setup                # build → up → migrate → seed
 - フロント: http://localhost:${FRONTEND_PORT:-9999}
 - API: http://localhost:${BACKEND_PORT:-19000}
 
-複数プロジェクトを同時に動かす場合、`.env` の `BACKEND_PORT` / `FRONTEND_PORT` /
-`DB_PORT` / `PMA_PORT` を変更するとホスト側の公開ポートを衝突しない値にできる。
+複数プロジェクトを同時に動かす場合、`.env` の `BACKEND_PORT` / `FRONTEND_PORT` を
+変更するとホスト側の公開ポートを衝突しない値にできる。
 
 ## 免責事項
 

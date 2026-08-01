@@ -4,8 +4,20 @@
 
 FROM public.ecr.aws/lambda/python:3.13
 
-# mysqlclient ビルドに必要なシステム依存
-RUN dnf install -y gcc mariadb105-devel pkgconfig && dnf clean all
+# DB は EFS 上の SQLite（標準ライブラリ同梱）のため追加のシステム依存は不要。
+#
+# PDF 生成(WeasyPrint)のネイティブ依存 + 日本語フォント(Noto CJK JP)を導入する。
+# 職務経歴書/スキルシートの日本語PDFを Lambda(Amazon Linux 2023)上で生成するために必須。
+# ※ Amazon Linux 2023 の dnf に全て存在することを PoC で検証済み(weasyprint 63.x, 日本語描画OK)。
+RUN dnf install -y \
+      pango \
+      cairo \
+      gdk-pixbuf2 \
+      libffi \
+      fontconfig \
+      google-noto-sans-cjk-jp-fonts \
+    && dnf clean all \
+    && fc-cache -f
 
 # uv インストール
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

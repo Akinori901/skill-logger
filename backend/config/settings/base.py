@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "corsheaders",
     # Local apps
     "apps.core",
+    "apps.auth_cognito",
     "apps.careers",
     "apps.generation",
 ]
@@ -71,17 +72,17 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # --- Database ---
+# 本番(Lambda+EFS)・開発・テストすべて SQLite に統一する。
+# データ量が小さく実質単一ユーザーのため RDS/MySQL は使わない（コスト最適化）。
+# 保存先は SQLITE_PATH で上書き可（本番は EFS 上の /mnt/efs/db.sqlite3）。
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("MYSQL_DATABASE", default="skill_logger"),
-        "USER": env("MYSQL_USER", default="skill_user"),
-        "PASSWORD": env("MYSQL_PASSWORD", default="skill_password"),
-        "HOST": env("MYSQL_HOST", default="db"),
-        "PORT": env("MYSQL_PORT", default="3306"),
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": env("SQLITE_PATH", default=str(BASE_DIR / "db.sqlite3")),
         "OPTIONS": {
-            "charset": "utf8mb4",
+            "timeout": 20,
+            "init_command": "PRAGMA busy_timeout=20000;",
         },
     }
 }
@@ -114,9 +115,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # --- Django REST Framework ---
 #
 # 認証方針:
-#   MVP は仮の軽量認証（単一ユーザー運用）。DEV_FIXED_USER_ID のユーザーを
-#   自動でリクエストに紐づける DevFixedUserAuthentication を使う。
-#   Phase B（共通 Cognito 化）で CognitoJWTAuthentication に差し替える。
+#   共通 Cognito 認証（qol-user-pool）。CognitoJWTAuthentication が
+#   `Authorization: Bearer <cognito_jwt>` を検証し、JIT プロビジョニングで
+#   m_user_allowed_emails に許可登録済みのユーザーだけ通す（招待制）。
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.StandardPagination",
     "PAGE_SIZE": 20,
@@ -124,7 +125,7 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "apps.core.authentication.DevFixedUserAuthentication",
+        "apps.auth_cognito.presentation.drf_authentication.CognitoJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -133,12 +134,31 @@ REST_FRAMEWORK = {
     "DATE_FORMAT": "%Y-%m-%d",
 }
 
-# MVP 仮認証: この ID の Django ユーザーを全リクエストの request.user に固定する。
-# seed コマンドで作成される。Phase B の Cognito 化で撤去する。
-DEV_FIXED_USER_ID = env.int("DEV_FIXED_USER_ID", default=1)
+# --- Cognito (OAuth) ---
+# 共通 Cognito 基盤 qol-user-pool の値。本番/ローカルとも env 経由で注入する。
+# 未設定時（default=""）は CognitoJWTAuthentication が常に None を返し全 API が 401。
+COGNITO_USER_POOL_ID = env("COGNITO_USER_POOL_ID", default="")
+COGNITO_REGION = env("COGNITO_REGION", default="ap-northeast-1")
+COGNITO_WEB_CLIENT_ID = env("COGNITO_WEB_CLIENT_ID", default="")
+COGNITO_DOMAIN_PREFIX = env("COGNITO_DOMAIN_PREFIX", default="")
+
+# JWT 検証時に許可する client_id の集合（web client のみ。空文字は除外）。
+COGNITO_ALLOWED_CLIENT_IDS = tuple(client_id for client_id in (COGNITO_WEB_CLIENT_ID,) if client_id)
+
+# JWT issuer（token の iss claim と完全一致を要求する）
+COGNITO_JWT_ISSUER = (
+    f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}" if COGNITO_USER_POOL_ID else ""
+)
+
+# JWKS URL（公開鍵取得用）
+COGNITO_JWKS_URL = f"{COGNITO_JWT_ISSUER}/.well-known/jwks.json" if COGNITO_USER_POOL_ID else ""
+
+# 初期管理者メール（seed が m_user_allowed_emails に登録する。締め出し防止）。
+# qol-user-pool の initial_admin_email と一致させること。
+INITIAL_ADMIN_EMAIL = env("INITIAL_ADMIN_EMAIL", default="")
 
 # --- LLM (AI 申請文生成) ---
-# API キーは DB(AiConfig) にユーザー単位で保存する（fair-value apps/ai 方式）。
+# API キーは DB(AiConfig) にユーザー単位で保存する。
 # _BASE_URL を上書きしたい場合（eval-proxy 経由等）に使用。空ならプロバイダ既定。
 LLM_API_BASE_URL = env("LLM_API_BASE_URL", default="")
 

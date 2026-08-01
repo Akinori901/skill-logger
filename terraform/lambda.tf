@@ -15,9 +15,11 @@ resource "aws_lambda_function" "api" {
   memory_size = 1536
   timeout     = 90
 
-  # SQLite への書き込み競合を根本的に排除するため同時実行を 1 に制限する
-  # （実質単一ユーザー運用のため実害はほぼ無い）。
-  reserved_concurrent_executions = 1
+  # 同時実行の上限。1 だとフロントが画面ロード時に複数 API(engagements /
+  # support-domains / auth/user)を並列で叩いた際にスロットリング(503)が発生する
+  # ため 10 に設定する。SQLite への書き込み競合は production.py の busy_timeout(20s)
+  # で直列化される（実質単一ユーザー運用のため書き込み競合の実害はほぼ無い）。
+  reserved_concurrent_executions = 10
 
   image_config {
     command = ["config.asgi.handler"]
@@ -33,7 +35,14 @@ resource "aws_lambda_function" "api" {
       # AI 申請文生成: プロバイダ既定エンドポイントを使うため空。
       # eval-proxy 等で上書きしたい場合のみ値を設定する。
       LLM_API_BASE_URL = ""
-      # 認証は現状「仮認証(DevFixedUserAuthentication)」のため Cognito 系は不要。
+      # Cognito 認証（共通基盤 qol-user-pool）。未設定時は CognitoJWTAuthentication が
+      # 常に None を返すため、値が揃うまで認証は無効（＝仮認証時代と同じく全通過ではなく 401）。
+      COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
+      COGNITO_REGION        = var.aws_region
+      COGNITO_WEB_CLIENT_ID = var.cognito_web_client_id
+      COGNITO_DOMAIN_PREFIX = var.cognito_domain_prefix
+      # seed が m_user_allowed_emails に登録する初期許可メール（締め出し防止）。
+      INITIAL_ADMIN_EMAIL = var.initial_admin_email
     }
   }
 
@@ -84,6 +93,12 @@ resource "aws_lambda_function" "worker" {
       ALLOWED_HOSTS          = "*"
       SQLITE_PATH            = "/mnt/efs/db.sqlite3"
       LLM_API_BASE_URL       = ""
+      # Cognito（API Lambda と揃える）。Worker は seed で INITIAL_ADMIN_EMAIL を使う。
+      COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
+      COGNITO_REGION        = var.aws_region
+      COGNITO_WEB_CLIENT_ID = var.cognito_web_client_id
+      COGNITO_DOMAIN_PREFIX = var.cognito_domain_prefix
+      INITIAL_ADMIN_EMAIL   = var.initial_admin_email
     }
   }
 

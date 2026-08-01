@@ -1,5 +1,6 @@
 import AddIcon from "@mui/icons-material/Add";
 import DescriptionIcon from "@mui/icons-material/Description";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import {
   Box,
   Button,
@@ -10,7 +11,9 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Stack,
+  Switch,
   Typography,
 } from "@mui/material";
 import { useState } from "react";
@@ -25,6 +28,8 @@ export default function EngagementListPage() {
   const [editing, setEditing] = useState<Engagement | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [markdown, setMarkdown] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [anonymize, setAnonymize] = useState(true);
 
   const openNew = () => {
     setEditing(null);
@@ -40,6 +45,23 @@ export default function EngagementListPage() {
     setMarkdown(md);
   };
 
+  const exportPdf = async () => {
+    setPdfLoading(true);
+    try {
+      const blob = await generationApi.exportPdf(undefined, anonymize);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "スキルシート.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   return (
     <Box>
       <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
@@ -49,6 +71,19 @@ export default function EngagementListPage() {
         <Box sx={{ flexGrow: 1 }} />
         <Button startIcon={<DescriptionIcon />} onClick={exportMd} sx={{ mr: 1 }}>
           Markdown出力
+        </Button>
+        <FormControlLabel
+          control={<Switch size="small" checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)} />}
+          label="企業名を伏せる"
+          sx={{ mr: 1 }}
+        />
+        <Button
+          startIcon={<PictureAsPdfIcon />}
+          onClick={exportPdf}
+          disabled={pdfLoading}
+          sx={{ mr: 1 }}
+        >
+          {pdfLoading ? "PDF生成中..." : "PDF出力"}
         </Button>
         <Button variant="contained" startIcon={<AddIcon />} onClick={openNew}>
           案件を追加

@@ -12,4 +12,6 @@ regexes = [
   '''admin1234''',
   # .env.example / docker-compose / settings のプレースホルダ・既定ダミー
   '''(rootpassword|skill_password|change-this|CHANGE_ME|your-[a-z-]+)''',
+  # Django キャッシュのキー名定数（秘密ではない。generic-api-key の誤検知）
+  '''cognito_jwks_keys_v1''',
 ]

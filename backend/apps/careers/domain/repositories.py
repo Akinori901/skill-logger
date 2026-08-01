@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .entities import EngagementEntity, SupportDomainEntity
+    from .entities import EngagementEntity, SupportDomainEntity, UserProfileEntity
 
 
 class EngagementRepository(ABC):
@@ -36,3 +36,11 @@ class SupportDomainRepository(ABC):
 
     @abstractmethod
     def find_by_code(self, code: str) -> SupportDomainEntity | None: ...
+
+
+class UserProfileRepository(ABC):
+    @abstractmethod
+    def find_by_user(self, user_id: int) -> UserProfileEntity | None: ...
+
+    @abstractmethod
+    def save(self, entity: UserProfileEntity) -> UserProfileEntity: ...

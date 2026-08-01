@@ -64,8 +64,23 @@ class ImportFromInventoryUseCase:
             if only_decision and item.get("decision") != only_decision:
                 result.skipped.append(name)
                 continue
-            if item.get("repo_count", 0) == 0 and not item.get("languages"):
-                # 手元にリポが無く技術データも空 → 取り込む意味が薄い
+            # 取り込む価値があるか判定。git集計(languages)が無くても、
+            # 手動補完技術・マーカー検出技術・経歴書由来プロファイル(役割/責務/成果)の
+            # いずれかがあれば「載せる意味のある案件」として取り込む。
+            # ※退職済み等でリポを再clone出来ない案件は languages が空になるが、
+            #   本人が匿名化して書いたプロファイルは職務経歴の主役なので落とさない。
+            has_content = (
+                item.get("repo_count", 0) > 0
+                or item.get("languages")
+                or item.get("manual_skills")
+                or item.get("detected_tech")
+                or item.get("title_line")
+                or item.get("role")
+                or item.get("responsibilities")
+                or item.get("achievements")
+            )
+            if not has_content:
+                # 技術データもプロファイルも一切無い → 取り込む意味が薄い
                 result.skipped.append(name)
                 continue
 
@@ -87,41 +102,76 @@ class ImportFromInventoryUseCase:
     # ------------------------------------------------------------------
 
     def _to_entity(self, item: dict[str, Any], user_id: int) -> EngagementEntity:
-        langs = [x["language"] for x in item.get("languages", [])]
+        languages = item.get("languages", [])
+        langs = [x["language"] for x in languages]
         fws = item.get("frameworks", [])
         tech: list[str] = []
         for t in [*langs, *fws]:
             if t and t not in tech:
                 tech.append(t)
 
-        title = f"{TITLE_PREFIX}{item.get('display_name') or item.get('source_key')}"
+        # 言語比率(pct)を関与度の重み(0.0〜1.0)に変換。git-local feed は「自分が
+        # 参加期間内に書いた行」の比率なので、これがそのまま関与度になる。
+        tech_weights: dict[str, float] = {}
+        for x in languages:
+            pct = x.get("pct")
+            if pct is not None:
+                tech_weights[x["language"]] = round(float(pct) / 100.0, 4)
+        # フレームワーク(React/Vue/Django等)は pct を持たず「使った」事実のみ。
+        # 期間フルカウント(重み1.0)にすると案件全期間ぶん計上され過大になるため、
+        # 控えめな既定重み(0.3)にする。実態が違う場合は manual_skills で上書き。
+        fw_weight = 0.3
+        for fw in fws:
+            tech_weights.setdefault(fw, fw_weight)
+
+        # マーカー検出した「使った技術」(Docker/Cypress/PHPUnit/Laravel等)を tech_stack に合流。
+        # git集計(自分が書いた行)に出ない技術を存在ベースで拾い、案件数を正確にする。
+        # detected は「そのプロジェクトで使った」事実なので重み1.0(使った案件の期間フル)を保証。
+        # ※git言語側で低い比率(例 cypress 0.0%)が出ていても、存在ベースの1.0で上書きする。
+        for t in item.get("detected_tech", []):
+            if not t:
+                continue
+            if t not in tech:
+                tech.append(t)
+            tech_weights[t] = 1.0
+
+        # 手動補完技術(git集計に出ない実務利用)。tech_stack にも足しつつ年数を保持。
+        manual_skills: dict[str, float] = {}
+        for ms in item.get("manual_skills", []):
+            t = ms.get("tech")
+            if not t:
+                continue
+            if t not in tech:
+                tech.append(t)
+            years = ms.get("years")
+            if years is not None:
+                manual_skills[t] = float(years)
+
+        # タイトルは「案件を簡潔に表す一文」(title_line)を優先。無ければ display_name。
+        title_line = item.get("title_line") or item.get("display_name") or item.get("source_key")
+        title = f"{TITLE_PREFIX}{title_line}"
+        # display_name は skill-inventory 側で匿名化済みの「企業名／案件呼称」。
+        # 非匿名表示時（企業名を伏せるOFF）の案件見出しに使う。
+        company_name = item.get("display_name", "")
         return EngagementEntity(
             user_id=user_id,
             title=title,
+            company_name=company_name,
+            industry=item.get("industry", ""),
+            position=item.get("role", ""),
             period_start=self._to_year_month(item.get("period_start", "")),
             period_end=self._to_year_month(item.get("period_end", "")),
             tech_stack=tech,
-            overview=self._build_overview(item),
+            tech_weights=tech_weights,
+            manual_skills=manual_skills,
+            tech_versions=dict(item.get("tech_versions", {})),
+            architecture=dict(item.get("architecture", {})),
+            overview=item.get("overview", ""),
+            responsibilities=item.get("responsibilities", ""),
+            challenges=item.get("achievements", ""),
         )
 
     @staticmethod
     def _to_year_month(date_str: str) -> str:
         """YYYY-MM-DD / YYYY-MM / YYYY を YYYY-MM（最大7文字）に正規化する。"""
         return date_str[:7] if date_str else ""
-
-    @staticmethod
-    def _build_overview(item: dict[str, Any]) -> str:
-        parts = []
-        top_langs = [x["language"] for x in item.get("languages", [])[:3]]
-        if top_langs:
-            parts.append(f"主要言語: {', '.join(top_langs)}")
-        if item.get("frameworks"):
-            parts.append(f"FW: {', '.join(item['frameworks'][:5])}")
-        parts.append(
-            f"規模: {item.get('repo_count', 0)}リポ / {item.get('file_count', 0)}ファイル / "
-            f"{item.get('total_commits', 0)}コミット"
-        )
-        if item.get("my_commits"):
-            parts.append(f"関与コミット: {item['my_commits']}")
-        parts.append("（skill-inventory から自動取り込み。業界・成果・支援領域は要記入）")
-        return "\n".join(parts)

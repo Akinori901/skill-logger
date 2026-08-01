@@ -1,7 +1,6 @@
 """LLM 呼び出しサービス（httpx で直叩き。SDK は導入しない）。
 
-fair-value-calculator/apps/ai の OpenAiClientService / GeminiClientService を
-簡素化して移植（申請文生成に必要な chat() のみ）。
+OpenAI 互換 / Gemini クライアントを簡素化した実装（申請文生成に必要な chat() のみ）。
 
 `settings.LLM_API_BASE_URL` が設定されていれば OpenAI 互換のベース URL を
 上書きできる（eval-proxy 等への切替用）。

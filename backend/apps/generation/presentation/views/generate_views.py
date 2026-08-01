@@ -71,3 +71,55 @@ class GenerateAllStatementsView(APIView):
         usecase = container.generate_all_statements_usecase()
         statements = usecase.execute(current_user_id(request), domain_codes)
         return Response([DomainStatementSerializer.entity_to_dict(s) for s in statements])
+
+
+class GenerateProfileNarrativeView(APIView):
+    """POST /api/generation/profile/narrative/  職務経歴書サマリの作文を生成
+
+    body: { "kind": "summary"|"strengths"|"good_at"|"ai_effect", "persist": bool }
+    """
+
+    @_handle_generation_errors
+    def post(self, request: Request) -> Response:
+        kind = str(request.data.get("kind", "summary"))
+        persist = bool(request.data.get("persist", False))
+        usecase = container.generate_profile_narrative_usecase()
+        text = usecase.execute(current_user_id(request), kind, persist=persist)
+        return Response({"kind": kind, "text": text})
+
+
+class GenerateEngagementNarrativeView(APIView):
+    """POST /api/generation/engagements/<id>/narrative/  案件の実績文を生成
+
+    body: { "persist": bool }
+    """
+
+    @_handle_generation_errors
+    def post(self, request: Request, engagement_id: int) -> Response:
+        persist = bool(request.data.get("persist", False))
+        usecase = container.generate_engagement_narrative_usecase()
+        text = usecase.execute(current_user_id(request), engagement_id, persist=persist)
+        return Response({"engagement_id": engagement_id, "text": text})
+
+
+class GenerateEngagementFieldView(APIView):
+    """POST /api/generation/engagements/<id>/field/  案件の単一フィールドを生成
+
+    body: { "field": "industry"|"overview"|"narrative", "persist": bool,
+            "only_if_empty": bool }
+    """
+
+    @_handle_generation_errors
+    def post(self, request: Request, engagement_id: int) -> Response:
+        field = str(request.data.get("field", "narrative"))
+        persist = bool(request.data.get("persist", False))
+        only_if_empty = bool(request.data.get("only_if_empty", False))
+        usecase = container.generate_engagement_field_usecase()
+        text = usecase.execute(
+            current_user_id(request),
+            engagement_id,
+            field,
+            persist=persist,
+            only_if_empty=only_if_empty,
+        )
+        return Response({"engagement_id": engagement_id, "field": field, "text": text})

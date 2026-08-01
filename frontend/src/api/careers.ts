@@ -1,5 +1,16 @@
-import type { Engagement, SupportDomain } from "../types/careers";
+import type { Engagement, SupportDomain, UserProfile } from "../types/careers";
 import { apiClient } from "./client";
+
+export const profileApi = {
+  get: async (): Promise<UserProfile> => {
+    const { data } = await apiClient.get("/careers/profile/");
+    return data;
+  },
+  save: async (payload: UserProfile): Promise<UserProfile> => {
+    const { data } = await apiClient.put("/careers/profile/", payload);
+    return data;
+  },
+};
 
 export const careersApi = {
   list: async (): Promise<Engagement[]> => {

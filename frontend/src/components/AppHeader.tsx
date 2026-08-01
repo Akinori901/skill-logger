@@ -1,12 +1,18 @@
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LaunchIcon from "@mui/icons-material/Launch";
-import { AppBar, Box, Button, Toolbar, Typography } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router-dom";
+import { AppBar, Box, Button, IconButton, Menu, MenuItem, Toolbar, Typography } from "@mui/material";
+import { signOut } from "aws-amplify/auth";
+import { useState } from "react";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+
+import { useAuthStore } from "../stores/authStore";
+import AiConfigDialog from "../pages/AiConfigDialog";
 
 /**
  * 横断アプリリンク。
  * .env の VITE_APP_LINKS に "ラベル|URL" のカンマ区切りで別アプリを登録すると、
  * ヘッダー右側にそのアプリへのリンクが表示される（将来のマルチアプリ横断操作用）。
- * 例: VITE_APP_LINKS=money-pilot|http://localhost:8888,fair-value|http://localhost:8080
+ * 例: VITE_APP_LINKS=app-one|http://localhost:8888,app-two|http://localhost:8080
  */
 function parseAppLinks(): { label: string; url: string }[] {
   const raw = import.meta.env.VITE_APP_LINKS as string | undefined;
@@ -24,13 +30,36 @@ function parseAppLinks(): { label: string; url: string }[] {
 
 const NAV = [
   { to: "/engagements", label: "棚卸し" },
+  { to: "/profile", label: "プロフィール" },
   { to: "/import", label: "取り込み" },
   { to: "/expert-application", label: "Expert申請文" },
 ];
 
 export default function AppHeader() {
   const location = useLocation();
+  const navigate = useNavigate();
   const appLinks = parseAppLinks();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [aiConfigOpen, setAiConfigOpen] = useState(false);
+
+  const openAiConfig = () => {
+    setAnchorEl(null);
+    setAiConfigOpen(true);
+  };
+
+  const handleLogout = async () => {
+    setAnchorEl(null);
+    // Cognito signOut。Hosted UI の logout URL 経由で /login に戻り、
+    // Hub.signedOut event で authStore もクリアされる。失敗時はフォールバック。
+    try {
+      await signOut();
+    } catch {
+      logout();
+      navigate("/login");
+    }
+  };
 
   return (
     <AppBar position="static">
@@ -64,7 +93,27 @@ export default function AppHeader() {
             {l.label}
           </Button>
         ))}
+        {user && (
+          <>
+            <Typography variant="body2" sx={{ ml: 2, mr: 0.5 }}>
+              {user.username}
+              {user.is_superuser && "（管理者）"}
+            </Typography>
+            <IconButton
+              color="inherit"
+              aria-label="アカウントメニュー"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+            >
+              <AccountCircleIcon />
+            </IconButton>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+              <MenuItem onClick={openAiConfig}>AI設定</MenuItem>
+              <MenuItem onClick={handleLogout}>ログアウト</MenuItem>
+            </Menu>
+          </>
+        )}
       </Toolbar>
+      <AiConfigDialog open={aiConfigOpen} onClose={() => setAiConfigOpen(false)} />
     </AppBar>
   );
 }

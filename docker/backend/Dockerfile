@@ -1,10 +1,16 @@
 FROM python:3.13-slim
 
-# mysqlclient ビルドに必要なシステム依存
+# DB は SQLite（標準ライブラリ同梱）のため追加のシステム依存は不要。
+#
+# PDF 生成(WeasyPrint)のネイティブ依存 + 日本語フォント(Noto CJK JP)を導入する
+# （本番 Dockerfile.production と同等。debian/slim の apt パッケージ名）。
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-libmysqlclient-dev \
-    build-essential \
-    pkg-config \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    libffi-dev \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # uv インストール

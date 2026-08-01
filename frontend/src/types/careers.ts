@@ -53,6 +53,10 @@ export interface Engagement {
   responsibilities?: string;
   tech_stack?: string[];
   challenges?: string;
+  phases?: string[];
+  contract_type?: string;
+  tech_categorized?: Record<string, string[]>;
+  narrative?: string;
   is_public?: boolean;
   display_order?: number;
   achievements?: Achievement[];
@@ -61,6 +65,54 @@ export interface Engagement {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface AiUsageItem {
+  tool: string;
+  how: string;
+  effect: string;
+}
+
+/** 職務経歴書サマリ（ユーザー単位のプロフィール）。 */
+export interface UserProfile {
+  display_name?: string;
+  age_range?: string;
+  residence?: string;
+  headline?: string;
+  summary?: string;
+  strengths?: string;
+  good_at?: string;
+  ai_usage?: AiUsageItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** 担当工程（コード→表示ラベル）。バックエンド ENGAGEMENT_PHASES と対応。 */
+export const ENGAGEMENT_PHASES: { code: string; label: string }[] = [
+  { code: "req", label: "要件定義" },
+  { code: "basic", label: "基本設計" },
+  { code: "detail", label: "詳細設計" },
+  { code: "backend", label: "Back実装" },
+  { code: "frontend", label: "Front実装" },
+  { code: "test", label: "テスト" },
+  { code: "research", label: "調査" },
+  { code: "refactor", label: "リファクタ" },
+];
+
+/** 雇用形態（コード→表示ラベル）。バックエンド CONTRACT_TYPES と対応。 */
+export const CONTRACT_TYPES: { code: string; label: string }[] = [
+  { code: "contract", label: "請負" },
+  { code: "quasi", label: "準委任" },
+  { code: "dispatch", label: "派遣" },
+];
+
+/** 技術の種別（tech_categorized のキー→表示ラベル）。バックエンド TECH_CATEGORIES と対応。 */
+export const TECH_CATEGORIES: { code: string; label: string }[] = [
+  { code: "language", label: "言語" },
+  { code: "db", label: "DB" },
+  { code: "framework", label: "フレームワーク" },
+  { code: "cloud", label: "クラウド" },
+  { code: "tool", label: "ツール" },
+];
 
 export interface SupportDomain {
   id: number;

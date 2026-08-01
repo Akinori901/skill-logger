@@ -1,8 +1,8 @@
 """共通 View モジュール。
 
 `UserDetailsView` はフロントエンドが現在のユーザー情報を取得するために叩く。
-MVP では仮認証（DevFixedUserAuthentication）で固定ユーザーが返る。
-Phase B の Cognito 化後もインターフェースは変わらない。
+認証は CognitoJWTAuthentication が適用され、Cognito JIT で解決された
+Django User がそのまま返る。
 """
 
 from __future__ import annotations

@@ -1,6 +1,7 @@
 # ローカルの公開ポートは全て .env の変数で指定できる（複数プロジェクト同時起動時の
 # ポート競合を避けるため）。デフォルト値は他 QOL アプリと衝突しない値にしてある。
-#   BACKEND_PORT (default 19000) / FRONTEND_PORT (9999) / DB_PORT (13307) / PMA_PORT (19080)
+#   BACKEND_PORT (default 19000) / FRONTEND_PORT (9999)
+# DB は本番同様 SQLite に統一（backend/db.sqlite3 に永続化。別途 DB コンテナ不要）。
 services:
   backend:
     build:
@@ -15,9 +16,6 @@ services:
       - .env
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.development
-    depends_on:
-      db:
-        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -39,42 +37,5 @@ services:
       - backend
     restart: unless-stopped
 
-  db:
-    build:
-      context: ./docker/mysql
-      dockerfile: Dockerfile
-    container_name: skill-db
-    ports:
-      - "${DB_PORT:-13307}:3306"
-    env_file:
-      - .env
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin:latest
-    container_name: skill-phpmyadmin
-    ports:
-      - "${PMA_PORT:-19080}:80"
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      PMA_USER: ${MYSQL_USER}
-      PMA_PASSWORD: ${MYSQL_PASSWORD}
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-
 volumes:
-  mysql_data:
   frontend_node_modules:
