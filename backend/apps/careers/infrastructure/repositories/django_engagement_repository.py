@@ -73,6 +73,9 @@ class DjangoEngagementRepository(EngagementRepository):
         row.title = entity.title
         row.industry = entity.industry
         row.company_name = entity.company_name
+        row.client = entity.client
+        row.agent = entity.agent
+        row.sier = entity.sier
         row.company_size_employees = entity.company_size_employees
         row.dev_org_size = entity.dev_org_size
         row.period_start = entity.period_start
@@ -90,6 +93,9 @@ class DjangoEngagementRepository(EngagementRepository):
         row.tech_versions = entity.tech_versions
         row.architecture = entity.architecture
         row.narrative = entity.narrative
+        row.project_key = entity.project_key
+        row.is_active = entity.is_active
+        row.local_path = entity.local_path
         row.is_public = entity.is_public
         row.display_order = entity.display_order
         row.save()
@@ -142,6 +148,9 @@ class DjangoEngagementRepository(EngagementRepository):
             title=row.title,
             industry=row.industry,
             company_name=row.company_name,
+            client=row.client,
+            agent=row.agent,
+            sier=row.sier,
             company_size_employees=row.company_size_employees,
             dev_org_size=row.dev_org_size,
             period_start=row.period_start,
@@ -159,6 +168,9 @@ class DjangoEngagementRepository(EngagementRepository):
             tech_versions=dict(row.tech_versions or {}),
             architecture=dict(row.architecture or {}),
             narrative=row.narrative,
+            project_key=row.project_key,
+            is_active=row.is_active,
+            local_path=row.local_path,
             is_public=row.is_public,
             display_order=row.display_order,
             created_at=row.created_at,

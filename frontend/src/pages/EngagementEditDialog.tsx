@@ -71,11 +71,14 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
   const [techInput, setTechInput] = useState("");
   // 技術種別ごとの入力中文字列（言語/DB/FW/クラウド/ツール）
   const [catInputs, setCatInputs] = useState<Record<string, string>>({});
-  const [genField, setGenField] = useState<"industry" | "overview" | "narrative" | null>(null);
+  const [genField, setGenField] = useState<
+    "industry" | "overview" | "narrative" | "responsibilities" | "challenges" | "position" | null
+  >(null);
   const [batchFilling, setBatchFilling] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
-  const aiReady = Boolean(aiConfig?.is_enabled && aiConfig?.api_key);
+  // GET レスポンスは漏洩防止で api_key を返さず has_api_key(bool) を返すため、判定は has_api_key を見る。
+  const aiReady = Boolean(aiConfig?.is_enabled && aiConfig?.has_api_key);
 
   useEffect(() => {
     setForm(engagement ? { ...EMPTY, ...engagement } : EMPTY);
@@ -84,7 +87,9 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
     setGenError(null);
   }, [engagement, open]);
 
-  const generateField = async (field: "industry" | "overview" | "narrative") => {
+  const generateField = async (
+    field: "industry" | "overview" | "narrative" | "responsibilities" | "challenges" | "position"
+  ) => {
     if (!form.id) return;
     setGenError(null);
     setGenField(field);
@@ -107,7 +112,9 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
     if (!form.id) return;
     setGenError(null);
     setBatchFilling(true);
-    const targets: ("industry" | "overview" | "narrative")[] = ["industry", "overview", "narrative"];
+    const targets: ("industry" | "overview" | "narrative" | "responsibilities" | "challenges" | "position")[] = [
+      "industry", "position", "overview", "responsibilities", "challenges", "narrative",
+    ];
     try {
       for (const field of targets) {
         if ((form[field] ?? "").toString().trim()) continue; // 既存値ありはスキップ
@@ -224,7 +231,7 @@ export default function EngagementEditDialog({ open, engagement, onClose }: Prop
                 disabled={!aiReady || batchFilling || genField !== null}
                 fullWidth
               >
-                {batchFilling ? "空欄を生成中..." : "空欄（業界・概要・実績）をまとめてGeminiで生成"}
+                {batchFilling ? "空欄を生成中..." : "空欄（業界・ポジション・概要・担当・苦労・実績）をまとめてGeminiで生成"}
               </Button>
               {!aiReady && (
                 <Typography variant="caption" color="text.secondary">

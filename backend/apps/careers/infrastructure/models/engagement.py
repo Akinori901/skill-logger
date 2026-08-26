@@ -13,6 +13,11 @@ class Engagement(models.Model):
     title = models.CharField(max_length=200)
     industry = models.CharField(max_length=100, blank=True)
     company_name = models.CharField(max_length=200, blank=True)
+    # 参加ルート3軸（skill-inventory の client/agent/sier と揃える）。
+    # 実名を格納し、public 出力時の匿名化は is_public で制御する。
+    client = models.CharField(max_length=200, blank=True, default="")  # 案件先（実際の発注元）
+    agent = models.CharField(max_length=200, blank=True, default="")   # 紹介元エージェント
+    sier = models.CharField(max_length=200, blank=True, default="")    # 実装元SIer
     company_size_employees = models.IntegerField(null=True, blank=True)
     dev_org_size = models.IntegerField(null=True, blank=True)
     period_start = models.CharField(max_length=7, blank=True)  # YYYY-MM
@@ -35,6 +40,13 @@ class Engagement(models.Model):
     # 採用したアーキテクチャ構造（案件詳細に層図を出す）。{"name": str, "layers": [str, ...]}
     architecture = models.JSONField(default=dict, blank=True)
     narrative = models.TextField(blank=True)  # 実績・取り組みの作文
+    # 案件レジストリ共通キー(skill-inventory ledger/projects.yaml の key)。
+    # Publicity の projects.yaml / redaction / jobs.projectKey と同一語彙。空=記事化対象外。
+    project_key = models.CharField(max_length=50, blank=True, default="")
+    # 稼働中フラグ。週次ネタ収穫が is_active な案件だけを対象にする。
+    is_active = models.BooleanField(default=False)
+    # 記事化で読むローカルのコード配置パス(利用者のPC/SSD)。worker が収穫対象にする。
+    local_path = models.CharField(max_length=500, blank=True, default="")
     is_public = models.BooleanField(default=False)
     display_order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)

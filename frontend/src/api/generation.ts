@@ -60,7 +60,7 @@ export const generationApi = {
    * only_if_empty=true で既存値があるフィールドはスキップ（一括自動埋め用）。 */
   generateEngagementField: async (
     engagementId: number,
-    field: "industry" | "overview" | "narrative",
+    field: "industry" | "overview" | "narrative" | "responsibilities" | "challenges" | "position",
     opts: { persist?: boolean; onlyIfEmpty?: boolean } = {},
   ): Promise<string> => {
     const { data } = await apiClient.post(`/generation/engagements/${engagementId}/field/`, {

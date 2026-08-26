@@ -56,7 +56,12 @@ class ImportFromInventoryUseCase:
         """
         result = ImportResult()
         engagements = feed.get("engagements", [])
-        existing = {e.title: e for e in self._repo.find_by_user(user_id)}
+        # 既存案件を2つの索引で持つ。project_key(=ledger key)を第一の照合キーにし、
+        # 無い場合のみ title で照合する。これにより dev-branding 等で title を編集しても、
+        # 次回取り込みが同一案件に正しく重なる（title 単独照合だと重複作成される）。
+        prior_list = self._repo.find_by_user(user_id)
+        existing_by_key = {e.project_key: e for e in prior_list if e.project_key}
+        existing_by_title = {e.title: e for e in prior_list}
 
         for item in engagements:
             name = item.get("display_name") or item.get("source_key") or "?"
@@ -85,7 +90,12 @@ class ImportFromInventoryUseCase:
                 continue
 
             entity = self._to_entity(item, user_id)
-            prior = existing.get(entity.title)
+            # project_key(あれば)→ title の順で既存案件を照合する。
+            prior = None
+            if entity.project_key:
+                prior = existing_by_key.get(entity.project_key)
+            if prior is None:
+                prior = existing_by_title.get(entity.title)
             if prior is not None:
                 entity.id = prior.id
 
@@ -157,6 +167,8 @@ class ImportFromInventoryUseCase:
             user_id=user_id,
             title=title,
             company_name=company_name,
+            # feed の source_key = ledger/projects.yaml の key。案件レジストリの共通キー。
+            project_key=item.get("source_key", ""),
             industry=item.get("industry", ""),
             position=item.get("role", ""),
             period_start=self._to_year_month(item.get("period_start", "")),
