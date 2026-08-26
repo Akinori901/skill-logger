@@ -1,0 +1,31 @@
+{
+  "name": "SkillLogger — 業務経歴の棚卸し",
+  "short_name": "SkillLogger",
+  "description": "業務経歴を構造化して棚卸しし、職務経歴書や案件応募向けの文章を AI 生成する経歴管理基盤。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#043060",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

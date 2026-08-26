@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 NARRATIVE_KINDS = ("summary", "strengths", "good_at", "ai_effect")
 
 # 案件フィールドの生成種別（industry/overview は下書き用、narrative は実績文）
-ENGAGEMENT_FIELD_KINDS = ("industry", "overview", "narrative")
+ENGAGEMENT_FIELD_KINDS = ("industry", "overview", "narrative", "responsibilities", "challenges", "position")
 
 _COMMON_RULES = (
     "# 制約（厳守）\n"
@@ -87,6 +87,28 @@ class ResumePromptBuilderService:
                 + "\n- 出力はプロジェクト概要を1〜3文で。何のためのどんなシステムかが伝わるようにする。"
                 "\n- 技術スタック・規模・期間から妥当に推測し、企業名は出さない。"
             )
+        if kind == "responsibilities":
+            return (
+                base
+                + _COMMON_RULES
+                + "\n- 出力はその案件で『担当したこと』を2〜4文で。技術スタック・工程から妥当な担当範囲を書く。"
+                "\n- 設計/実装/テスト/レビュー等、具体的な作業内容が伝わるようにする。企業名は出さない。"
+            )
+        if kind == "challenges":
+            return (
+                base
+                + _COMMON_RULES
+                + "\n- 出力はその案件で『苦労したこと・工夫したこと』を1〜3文で。"
+                "技術的な難所と、それにどう対処/工夫したかを書く。事実から離れた誇張はしない。企業名は出さない。"
+            )
+        if kind == "position":
+            return (
+                base
+                + "# 制約（厳守）\n"
+                "- 出力は担当ポジション/ロールのみ。簡潔な名詞句で1つだけ返す。\n"
+                "- 例: 『Backendエンジニア』『フルスタックエンジニア』『テックリード』『インフラエンジニア』。\n"
+                "- 技術スタックから妥当に推測する。説明文・前置き・記号・引用符は付けない。"
+            )
         # narrative（実績・取り組み）
         return (
             base
@@ -103,6 +125,9 @@ class ResumePromptBuilderService:
             "industry": "上記の技術・規模から、この案件の業界/事業ドメインを簡潔な名詞句で1つ推測してください。",
             "overview": "上記を根拠に、この案件のプロジェクト概要を1〜3文で書いてください。",
             "narrative": "上記を根拠に、この案件の『実績・取り組み』を2〜4文で書いてください。",
+            "responsibilities": "上記を根拠に、この案件で『担当したこと』を2〜4文で書いてください。",
+            "challenges": "上記を根拠に、この案件で『苦労したこと・工夫したこと』を1〜3文で書いてください。",
+            "position": "上記の技術・工程から、担当ポジション/ロールを簡潔な名詞句で1つ推測してください。",
         }
         lines.append(asks.get(kind, asks["narrative"]))
         return "\n".join(lines)

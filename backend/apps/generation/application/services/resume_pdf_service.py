@@ -522,30 +522,131 @@ class ResumePdfService:
             key=lambda e: (e.period_end or "9999-99", e.period_start or ""),
             reverse=True,
         )
+        # 匿名時の企業仮名マップを構築。集約キー(sier優先→company_name)が同一の案件には同一仮名(企業A/企業B…)を
+        # 割り当て、「同じ企業から複数案件」が読み手に伝わるようにする。登場順(期間降順)で採番。
+        alias_map = self._build_company_aliases(ordered)
         for i, e in enumerate(ordered, start=1):
-            parts.append(self._render_engagement(e, i, anonymize=anonymize))
+            parts.append(self._render_engagement(e, i, anonymize=anonymize, alias_map=alias_map))
         return "".join(parts)
 
-    def _display_title(self, e: EngagementEntity, index: int, *, anonymize: bool) -> str:
+    @staticmethod
+    def _label(n: int) -> str:
+        """0→A, 1→B, …, 25→Z, 26→AA … と桁上がりするアルファベット表記。"""
+        label = ""
+        while True:
+            label = chr(ord("A") + (n % 26)) + label
+            n = n // 26 - 1
+            if n < 0:
+                break
+        return label
+
+    def _build_company_aliases(self, ordered: list[EngagementEntity]) -> dict[str, str]:
+        """匿名見出しの集約仮名を返す。案件ごとに2系統を使い分ける:
+
+        - sier あり: 同一 sier を「企業A/企業B…」に束ねる（SIer経由の集約軸）。
+          キー = "sier:<sier>"、値 = "企業A"。
+        - sier なし（直取引・自社案件など）: 同一 company_name を client 名 + 連番で
+          束ねる。「食品メーカー A / 食品メーカー B」のように、企業を伏せつつ同一企業を示す。
+          キー = "company:<company_name>"、値 = "<client> <A/B>"（clientが無ければ空→
+          _display_title 側で「案件N：業界」にフォールバック）。
+
+        同一 company_name が1件しかなければ連番(A)は付けない（単独案件をぼかしすぎない）。
+        """
+        # sier ごと採番（企業A/B…）
+        aliases: dict[str, str] = {}
+        sier_seen: list[str] = []
+        # company ごと: 出現順の index と、その client を記録（sier 無しのみ対象）
+        company_order: dict[str, int] = {}
+        company_client: dict[str, str] = {}
+        company_count: dict[str, int] = {}
+        for e in ordered:
+            sier = (e.sier or "").strip()
+            company = (e.company_name or "").strip()
+            if sier:
+                if sier not in sier_seen:
+                    sier_seen.append(sier)
+                aliases[f"sier:{sier}"] = f"企業{self._label(sier_seen.index(sier))}"
+            elif company:
+                if company not in company_order:
+                    company_order[company] = len(company_order)
+                    company_client[company] = (e.client or "").strip()
+                company_count[company] = company_count.get(company, 0) + 1
+        # sier なし company の連番ラベルを確定（同一 company が2件以上のときだけ連番）
+        per_client_index: dict[str, int] = {}
+        for company, _idx in company_order.items():
+            client = company_client.get(company, "")
+            if not client:
+                continue
+            if company_count.get(company, 0) >= 2:
+                i = per_client_index.get(client, 0)
+                aliases[f"company:{company}"] = f"{client} {self._label(i)}"
+                per_client_index[client] = i + 1
+            else:
+                aliases[f"company:{company}"] = client
+        return aliases
+
+    def _should_mask_company(self, e: EngagementEntity, *, anonymize: bool) -> bool:
+        """この案件の企業名を伏せるか。
+        ルール:
+          - is_public=False（絶対に実名を出さない企業）: スライダーに関わらず常に伏せる。
+          - is_public=True（実名を出してよい企業）: スライダー(anonymize)に従う。
+        """
+        if not e.is_public:
+            return True
+        return anonymize
+
+    def _display_title(
+        self,
+        e: EngagementEntity,
+        index: int,
+        *,
+        anonymize: bool,
+        alias_map: dict[str, str] | None = None,
+    ) -> str:
         """案件詳細の見出し。
 
-        - 匿名時（anonymize or is_public）: 企業名を伏せ「案件N：業界」に。
-        - 非匿名時: 企業名（company_name）を出す。企業名が無い案件のみ
-          タイトル（「[inv] 」接頭辞は除去）へフォールバックする。
+        - 伏せるとき（sier あり）: 「企業A（SIer集約） / メーカー業種 / 案件名」。
+        - 伏せるとき（sier なし＝直取引・自社案件など）: 「メーカー業種 A / 案件名」。
+          同一 company_name が複数あれば client に連番(A/B…)を付け同一企業を示す。
+          企業A(SIer仮名)は付けない。
+          いずれも空要素は省く。全て空なら「案件N：業界」にフォールバック。
+        - 出すとき: 企業名（company_name） / 案件名。
         """
-        if anonymize or e.is_public:
-            industry = e.industry.strip() if e.industry else ""
-            return f"案件{index}：{industry}" if industry else f"案件{index}"
         company = e.company_name.strip() if e.company_name else ""
+        title = (e.title or "").replace("[inv] ", "").strip()
+        amap = alias_map or {}
+        if self._should_mask_company(e, anonymize=anonymize):
+            sier = (e.sier or "").strip()
+            if sier:
+                # 企業A（SIer） / メーカー業種 / 案件名
+                alias = amap.get(f"sier:{sier}")
+                client = (e.client or "").strip()
+                parts = [p for p in (alias, client, title) if p]
+            else:
+                # メーカー業種[ 連番] / 案件名（company_name で集約、企業A仮名は付けない）
+                label = amap.get(f"company:{company}") if company else ""
+                parts = [p for p in (label, title) if p]
+            if parts:
+                return " / ".join(parts)
+            industry = e.industry.strip() if e.industry else ""
+            head = f"案件{index}"
+            return f"{head}：{industry}" if industry else head
         if company:
-            return company
-        return e.title.replace("[inv] ", "").strip() or f"案件{index}"
+            return f"{company} / {title}" if title else company
+        return title or f"案件{index}"
 
-    def _render_engagement(self, e: EngagementEntity, index: int, *, anonymize: bool) -> str:
+    def _render_engagement(
+        self,
+        e: EngagementEntity,
+        index: int,
+        *,
+        anonymize: bool,
+        alias_map: dict[str, str] | None = None,
+    ) -> str:
         # カード。page-break-inside:avoid で PDF 化時に途中で切れないようにする。
         rows: list[str] = ['<div class="ecard">']
         period = self._period(e)
-        title = self._display_title(e, index, anonymize=anonymize)
+        title = self._display_title(e, index, anonymize=anonymize, alias_map=alias_map)
         # ヘッダ: 通し番号＋タイトル＋期間(右)。
         rows.append(
             f'<div class="ehead"><span class="eperiod">{escape(period)}</span>'

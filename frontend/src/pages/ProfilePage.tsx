@@ -42,7 +42,8 @@ export default function ProfilePage() {
   const [genKind, setGenKind] = useState<NarrativeKind | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
 
-  const aiReady = Boolean(aiConfig?.is_enabled && aiConfig?.api_key);
+  // GET は漏洩防止で api_key を返さず has_api_key(bool) を返すため、判定は has_api_key を見る。
+  const aiReady = Boolean(aiConfig?.is_enabled && aiConfig?.has_api_key);
 
   useEffect(() => {
     if (data) setForm({ ...EMPTY, ...data });

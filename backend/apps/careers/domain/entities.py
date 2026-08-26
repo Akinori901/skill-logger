@@ -95,6 +95,9 @@ class EngagementEntity:
     title: str
     industry: str = ""
     company_name: str = ""
+    client: str = ""   # 案件先（end）
+    agent: str = ""    # 紹介元エージェント
+    sier: str = ""     # 実装元SIer
     company_size_employees: int | None = None
     dev_org_size: int | None = None
     period_start: str = ""  # YYYY-MM
@@ -127,6 +130,18 @@ class EngagementEntity:
     architecture: dict[str, object] = field(default_factory=dict)
     # 実績・取り組みの作文（Gemini 生成 or 手入力）。事実の responsibilities とは別。
     narrative: str = ""
+    # 案件レジストリの共通キー（skill-inventory の ledger/projects.yaml の key）。
+    # Publicity の projects.yaml / redaction/<key>.yaml / jobs.projectKey と同一語彙で紐づく。
+    # 空＝記事化対象でない案件。実ローカルパスはここには持たない（Publicity ローカルにのみ）。
+    project_key: str = ""
+    # 稼働中フラグ。週次ネタ収穫(Publicity weekly_harvest)が is_active な案件だけを
+    # 収穫対象にする。過去案件(外付けSSD等)を除外し「今動いている案件」に絞るため。
+    is_active: bool = False
+    # 記事化のために読む「ローカルのコード配置パス」。Publicity worker が
+    # project_key でこの案件を解決するとき、この実パスを収穫対象ディレクトリにする。
+    # ${PUBLICITY_SSD_ROOT} 等の環境変数を含められる(自宅/事務所のマウント差を吸収)。
+    # ※このパスはローカル(利用者のPC/SSD)を指すだけで、DBに載っても第三者はデータ取得不可。
+    local_path: str = ""
     is_public: bool = False  # 匿名化制御（public 出力時に企業名を伏せるか。公開可＝匿名前提）
     display_order: int = 0
     achievements: list[AchievementEntity] = field(default_factory=list)

@@ -142,8 +142,17 @@ COGNITO_REGION = env("COGNITO_REGION", default="ap-northeast-1")
 COGNITO_WEB_CLIENT_ID = env("COGNITO_WEB_CLIENT_ID", default="")
 COGNITO_DOMAIN_PREFIX = env("COGNITO_DOMAIN_PREFIX", default="")
 
-# JWT 検証時に許可する client_id の集合（web client のみ。空文字は除外）。
-COGNITO_ALLOWED_CLIENT_IDS = tuple(client_id for client_id in (COGNITO_WEB_CLIENT_ID,) if client_id)
+# 同じ qol-user-pool を使う他サービス（例: Publicity/dev-branding の publicity-web-client）の
+# client_id を追加で許可する。案件レジストリ連携で dev-branding から Engagement API を叩くため。
+# カンマ区切りで複数指定可。本番/ローカルとも env 経由で注入する。
+COGNITO_EXTRA_CLIENT_IDS = env.list("COGNITO_EXTRA_CLIENT_IDS", default=[])
+
+# JWT 検証時に許可する client_id の集合（自 web client + 追加許可分。空文字は除外）。
+COGNITO_ALLOWED_CLIENT_IDS = tuple(
+    client_id
+    for client_id in (COGNITO_WEB_CLIENT_ID, *COGNITO_EXTRA_CLIENT_IDS)
+    if client_id
+)
 
 # JWT issuer（token の iss claim と完全一致を要求する）
 COGNITO_JWT_ISSUER = (

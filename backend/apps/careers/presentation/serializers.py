@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from rest_framework import serializers
@@ -56,6 +57,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
     title = serializers.CharField(max_length=200)
     industry = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     company_name = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    client = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    agent = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
+    sier = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")
     company_size_employees = serializers.IntegerField(required=False, allow_null=True)
     dev_org_size = serializers.IntegerField(required=False, allow_null=True)
     period_start = serializers.CharField(max_length=7, required=False, allow_blank=True, default="")
@@ -77,6 +81,10 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
         default=dict,
     )
     narrative = serializers.CharField(required=False, allow_blank=True, default="")
+    # 案件レジストリ共通キー（ledger/projects.yaml の key と同一語彙）。空許可。
+    project_key = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
+    is_active = serializers.BooleanField(required=False, default=False)
+    local_path = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     is_public = serializers.BooleanField(required=False, default=False)
     display_order = serializers.IntegerField(required=False, default=0)
     achievements = AchievementSerializer(many=True, required=False, default=list)
@@ -94,6 +102,14 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             )
         return value
 
+    def validate_project_key(self, value: str) -> str:
+        """案件レジストリキーは ledger/projects.yaml の key 語彙（[a-z0-9_]）に合わせる。空は許可。"""
+        if value and not re.fullmatch(r"[a-z0-9_]+", value):
+            raise serializers.ValidationError(
+                "project_key は英小文字・数字・アンダースコアのみ使用できます（例: my_project）。"
+            )
+        return value
+
     def to_entity(self, user_id: int) -> EngagementEntity:
         """バリデーション済み data → EngagementEntity。"""
         d = self.validated_data
@@ -103,6 +119,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             title=d["title"],
             industry=d.get("industry", ""),
             company_name=d.get("company_name", ""),
+            client=d.get("client", ""),
+            agent=d.get("agent", ""),
+            sier=d.get("sier", ""),
             company_size_employees=d.get("company_size_employees"),
             dev_org_size=d.get("dev_org_size"),
             period_start=d.get("period_start", ""),
@@ -116,6 +135,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             contract_type=d.get("contract_type", ""),
             tech_categorized={k: list(v) for k, v in d.get("tech_categorized", {}).items()},
             narrative=d.get("narrative", ""),
+            project_key=d.get("project_key", ""),
+            is_active=d.get("is_active", False),
+            local_path=d.get("local_path", ""),
             is_public=d.get("is_public", False),
             display_order=d.get("display_order", 0),
             achievements=[
@@ -150,6 +172,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             "title": entity.title,
             "industry": entity.industry,
             "company_name": entity.company_name,
+            "client": entity.client,
+            "agent": entity.agent,
+            "sier": entity.sier,
             "company_size_employees": entity.company_size_employees,
             "dev_org_size": entity.dev_org_size,
             "period_start": entity.period_start,
@@ -163,6 +188,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             "contract_type": entity.contract_type,
             "tech_categorized": entity.tech_categorized,
             "narrative": entity.narrative,
+            "project_key": entity.project_key,
+            "is_active": entity.is_active,
+            "local_path": entity.local_path,
             "is_public": entity.is_public,
             "display_order": entity.display_order,
             "created_at": entity.created_at,
