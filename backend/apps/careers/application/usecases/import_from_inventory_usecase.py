@@ -160,13 +160,17 @@ class ImportFromInventoryUseCase:
         # タイトルは「案件を簡潔に表す一文」(title_line)を優先。無ければ display_name。
         title_line = item.get("title_line") or item.get("display_name") or item.get("source_key")
         title = f"{TITLE_PREFIX}{title_line}"
-        # display_name は skill-inventory 側で匿名化済みの「企業名／案件呼称」。
-        # 非匿名表示時（企業名を伏せるOFF）の案件見出しに使う。
-        company_name = item.get("display_name", "")
+        # 企業名は feed の company_name（実企業名）を使う。無い案件は従来どおり
+        # display_name（案件呼称）にフォールバックする。
+        # client は「企業名を伏せる」時に company_name の代わりに出す匿名化代替テキスト
+        # （例「業務システム開発企業」）。両者を分けて持つことで、実名/匿名を出し分けられる。
+        company_name = item.get("company_name") or item.get("display_name", "")
+        client = item.get("client", "")
         return EngagementEntity(
             user_id=user_id,
             title=title,
             company_name=company_name,
+            client=client,
             # feed の source_key = ledger/projects.yaml の key。案件レジストリの共通キー。
             project_key=item.get("source_key", ""),
             industry=item.get("industry", ""),

@@ -26,10 +26,11 @@ class ExportEngagementsPdfUseCase:
         engagement_ids: list[int] | None = None,
         *,
         anonymize: bool = True,
+        hide_name: bool = False,
     ) -> bytes:
         engagements = self._engagement_repo.find_by_user(user_id)
         if engagement_ids:
             id_set = set(engagement_ids)
             engagements = [e for e in engagements if e.id in id_set]
         profile = self._profile_repo.find_by_user(user_id) if self._profile_repo is not None else None
-        return self._pdf.render_pdf(engagements, profile, anonymize=anonymize)
+        return self._pdf.render_pdf(engagements, profile, anonymize=anonymize, hide_name=hide_name)
