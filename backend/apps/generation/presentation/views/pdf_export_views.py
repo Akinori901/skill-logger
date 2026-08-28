@@ -24,9 +24,14 @@ class PdfExportView(APIView):
         engagement_ids = [int(x) for x in ids_param.split(",") if x.strip().isdigit()] or None
         # anonymize は既定 True。明示的に "false" のときだけ企業名を出す。
         anonymize = request.query_params.get("anonymize", "true").lower() != "false"
+        # hide_name は既定 False（氏名を出す）。"true" のときだけ氏名を伏せる。
+        # anonymize（企業名）とは独立したスライダーで、片方だけ伏せる運用もできる。
+        hide_name = request.query_params.get("hide_name", "false").lower() == "true"
 
         usecase = container.export_engagements_pdf_usecase()
-        pdf_bytes = usecase.execute(current_user_id(request), engagement_ids, anonymize=anonymize)
+        pdf_bytes = usecase.execute(
+            current_user_id(request), engagement_ids, anonymize=anonymize, hide_name=hide_name
+        )
 
         response = HttpResponse(pdf_bytes, content_type="application/pdf")
         # 日本語ファイル名は RFC 5987 の filename*（UTF-8 パーセントエンコード）で渡す。

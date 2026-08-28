@@ -359,6 +359,7 @@ class ResumePdfService:
         profile: object | None = None,
         *,
         anonymize: bool = True,
+        hide_name: bool = False,
     ) -> bytes:
         """PDF を生成する。
 
@@ -367,8 +368,10 @@ class ResumePdfService:
             profile: UserProfileEntity（Phase 3 で導入）。None の場合はサマリの
                 プロフィール欄を省略しスキルマトリクスのみ表示する。
             anonymize: True（既定）なら企業名を出さず業界＋規模で代替する。
+            hide_name: True なら氏名を出さない（企業名の anonymize と独立したスライダー）。
+                エージェント経由の提出など、氏名を伏せたまま経歴を渡す場合に使う。
         """
-        html = self._build_html(engagements, profile, anonymize=anonymize)
+        html = self._build_html(engagements, profile, anonymize=anonymize, hide_name=hide_name)
         # 遅延 import: weasyprint はネイティブ依存を要するため、import 時点で
         # 環境が整っていない場合のエラーを PDF 生成時に閉じ込める。
         from weasyprint import HTML  # noqa: PLC0415
@@ -377,10 +380,17 @@ class ResumePdfService:
 
     # --- HTML 組み立て ---
 
-    def _build_html(self, engagements: list[EngagementEntity], profile: object | None, *, anonymize: bool) -> str:
+    def _build_html(
+        self,
+        engagements: list[EngagementEntity],
+        profile: object | None,
+        *,
+        anonymize: bool,
+        hide_name: bool = False,
+    ) -> str:
         # 2ゾーン構成: サマリ（スキルマトリクス込み）→ 案件詳細。
         # 末尾のスキルシートはサマリのスキルマトリクスと重複するため廃止。
-        summary = self._render_summary(engagements, profile)
+        summary = self._render_summary(engagements, profile, hide_name=hide_name)
         details = self._render_details(engagements, anonymize=anonymize)
         return (
             f"<html><head><meta charset='utf-8'><style>{_CSS}</style></head>"
@@ -390,10 +400,12 @@ class ResumePdfService:
 
     # --- ゾーン1: サマリシート ---
 
-    def _render_summary(self, engagements: list[EngagementEntity], profile: object | None) -> str:
+    def _render_summary(
+        self, engagements: list[EngagementEntity], profile: object | None, *, hide_name: bool = False
+    ) -> str:
         parts: list[str] = []
         # ヒーロー（氏名・肩書・自己紹介リード・主要スキルチップ）を1ブロックに。
-        parts.append(self._render_hero(engagements, profile))
+        parts.append(self._render_hero(engagements, profile, hide_name=hide_name))
 
         # スキル・経験（カテゴリ別カード・バージョン付き）
         parts.append("<h2>スキル・経験</h2>")
@@ -415,8 +427,13 @@ class ResumePdfService:
 
         return "".join(parts)
 
-    def _render_hero(self, engagements: list[EngagementEntity], profile: object | None) -> str:
-        name = self._profile_attr(profile, "display_name") or "職務経歴書"
+    def _render_hero(
+        self, engagements: list[EngagementEntity], profile: object | None, *, hide_name: bool = False
+    ) -> str:
+        # 氏名を伏せる場合は display_name を一切出さず、文書名だけを見出しにする。
+        # 企業名マスク(anonymize)とは独立。氏名は profile 由来の1箇所にしか出ないため、
+        # ここで差し替えれば PDF 全体から氏名が消える。
+        name = "職務経歴書" if hide_name else (self._profile_attr(profile, "display_name") or "職務経歴書")
         attrs = [escape(v) for key in ("age_range", "residence", "headline") if (v := self._profile_attr(profile, key))]
         attr_line = " ｜ ".join(attrs)
         # リード文（自己紹介）。末尾に設計・アーキテクチャの一文を添える。
@@ -595,6 +612,34 @@ class ResumePdfService:
             return True
         return anonymize
 
+    def _mask_free_text(self, text: str, e: EngagementEntity, *, anonymize: bool) -> str:
+        """自由文（概要・担当・実績）に紛れた実名を伏せる。
+
+        見出しの匿名化(_display_title/_meta_line)は company_name フィールドを
+        業界＋規模に置き換えるだけで、overview/narrative 等の本文に手入力や AI 生成で
+        紛れた実企業名までは伏せられない。ここで本文レベルでも実名を除去する。
+
+        - company_name: 業界があれば「◯◯業の案件先」、無ければ「案件先企業」に置換。
+        - client / agent / sier の実名: 中立語に置換（役割語）。
+        長い名前から順に置換して部分一致の取りこぼしを防ぐ。マスク対象でなければ素通し。
+        """
+        if not text or not self._should_mask_company(e, anonymize=anonymize):
+            return text
+        industry = (e.industry or "").strip()
+        company_alt = f"{industry}の案件先" if industry else "案件先企業"
+        repl: list[tuple[str, str]] = []
+        if (e.company_name or "").strip():
+            repl.append((e.company_name.strip(), company_alt))
+        if (e.client or "").strip():
+            repl.append((e.client.strip(), "案件先"))
+        if (e.sier or "").strip():
+            repl.append((e.sier.strip(), "開発元"))
+        if (e.agent or "").strip():
+            repl.append((e.agent.strip(), "エージェント"))
+        for name, alt in sorted(repl, key=lambda kv: len(kv[0]), reverse=True):
+            text = text.replace(name, alt)
+        return text
+
     def _display_title(
         self,
         e: EngagementEntity,
@@ -660,6 +705,7 @@ class ResumePdfService:
         # ブロック記法（">" や "|"）だけが値に残るケースがあり、その場合は概要欄を出さない。
         overview = e.overview.strip() if e.overview else ""
         if overview and overview not in (">", "|"):
+            overview = self._mask_free_text(overview, e, anonymize=anonymize)
             rows.append(f'<div class="label">プロジェクト概要</div><div class="section">{escape(overview)}</div>')
 
         # 担当工程（担当分だけ塗りタグ）
@@ -669,12 +715,14 @@ class ResumePdfService:
 
         # 業務内容（事実）
         if e.responsibilities:
-            rows.append(f'<div class="label">担当したこと</div><div class="section">{escape(e.responsibilities)}</div>')
+            resp = self._mask_free_text(e.responsibilities, e, anonymize=anonymize)
+            rows.append(f'<div class="label">担当したこと</div><div class="section">{escape(resp)}</div>')
 
         # 実績・取り組み（narrative=作文があれば優先、無ければ challenges）
         narrative_attr = self._engagement_attr(e, "narrative")
         narrative = str(narrative_attr) if narrative_attr else e.challenges
         if narrative:
+            narrative = self._mask_free_text(narrative, e, anonymize=anonymize)
             rows.append(f'<div class="label">実績・取り組み</div><div class="section">{escape(narrative)}</div>')
 
         # アーキテクチャ（採用した層構造を図で可視化。リポ構造で採用実態を確認済み）

@@ -30,6 +30,7 @@ export default function EngagementListPage() {
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [anonymize, setAnonymize] = useState(true);
+  const [hideName, setHideName] = useState(false);
 
   const openNew = () => {
     setEditing(null);
@@ -48,7 +49,7 @@ export default function EngagementListPage() {
   const exportPdf = async () => {
     setPdfLoading(true);
     try {
-      const blob = await generationApi.exportPdf(undefined, anonymize);
+      const blob = await generationApi.exportPdf(undefined, anonymize, hideName);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -75,6 +76,11 @@ export default function EngagementListPage() {
         <FormControlLabel
           control={<Switch size="small" checked={anonymize} onChange={(e) => setAnonymize(e.target.checked)} />}
           label="企業名を伏せる"
+          sx={{ mr: 1 }}
+        />
+        <FormControlLabel
+          control={<Switch size="small" checked={hideName} onChange={(e) => setHideName(e.target.checked)} />}
+          label="氏名を伏せる"
           sx={{ mr: 1 }}
         />
         <Button

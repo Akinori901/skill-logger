@@ -1,5 +1,14 @@
 # SkillLogger
 
+<p>
+  <img alt="Python / Django" src="https://img.shields.io/badge/Django_6-clean_arch-092E20?logo=django&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React_19-TypeScript-61DAFB?logo=react&logoColor=black">
+  <img alt="AI生成" src="https://img.shields.io/badge/AI生成-Gemini_/_Claude_/_OpenAI-D97757">
+  <img alt="AWS" src="https://img.shields.io/badge/AWS-Lambda_/_CloudFront_/_EFS-232F3E?logo=amazonwebservices&logoColor=white">
+  <img alt="IaC" src="https://img.shields.io/badge/IaC-Terraform-844FBA?logo=terraform&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+</p>
+
 > このリポジトリは、非公開の開発リポジトリからリリース時点のスナップショットを公開している
 > **ミラー**です。開発履歴は含まれず、`v*` タグごとに1コミットが積まれます。
 
