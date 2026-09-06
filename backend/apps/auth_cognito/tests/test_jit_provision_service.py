@@ -1,6 +1,8 @@
 """JitProvisionService のテスト。
 
-JIT は「sub マッチ → allowed_emails マッチ → 紐付け、いずれも無ければ拒否」する。
+JIT は「許可判定 → sub マッチ → allowed_emails で紐付け」の順に解決する。
+許可判定を先に置くのは、リンク済みの人の許可を後から取り消せるようにするため。
+判定は「中央 OR allowed_emails」で、移行中はどちらかで許可されれば通す。
 1 つの auth_user に複数の Cognito identity (Cognito email + Google 等) を紐付け可能。
 """
 
@@ -48,10 +50,12 @@ def _make_service() -> JitProvisionService:
 
 class TestJitProvisionService:
     def test_returns_existing_user_when_link_exists(self) -> None:
+        """リンク済みなら既存 user を返す。ただし許可は毎回確認する。"""
         user_model = get_user_model()
         existing = user_model._default_manager.create(  # noqa: SLF001
             username="existing", email="existing@example.com"
         )
+        UserAllowedEmail.objects.create(user=existing, email="existing@example.com")
         CognitoLink.objects.create(
             cognito_sub="sub-1",
             user=existing,
@@ -59,11 +63,34 @@ class TestJitProvisionService:
             cognito_email="existing@example.com",
         )
 
-        user = _make_service().provision(_make_claims(sub="sub-1", email="ignored@example.com"))
+        user = _make_service().provision(_make_claims(sub="sub-1", email="existing@example.com"))
 
         assert user.pk == existing.pk
         # 既存リンクなのでテーブルに重複は作らない
         assert CognitoLink.objects.filter(cognito_sub="sub-1").count() == 1
+
+    def test_rejects_linked_user_whose_permission_was_revoked(self) -> None:
+        """リンク済みでも、許可が取り消されていれば拒否する。
+
+        許可判定をリンク解決より後に置くと、一度ログインした人の許可を
+        後から取り消せなくなる。この順序を守っていることを固定する。
+        """
+        user_model = get_user_model()
+        existing = user_model._default_manager.create(  # noqa: SLF001
+            username="revoked", email="revoked@example.com"
+        )
+        CognitoLink.objects.create(
+            cognito_sub="sub-revoked",
+            user=existing,
+            provider="cognito",
+            cognito_email="revoked@example.com",
+        )
+        # m_user_allowed_emails には登録が無い（＝許可を取り消した状態）
+
+        with pytest.raises(UserNotAllowedError):
+            _make_service().provision(
+                _make_claims(sub="sub-revoked", email="revoked@example.com")
+            )
 
     def test_links_existing_user_via_allowed_emails(self) -> None:
         """sub マッチがなくても、allowed_emails に登録された email なら既存 user に紐付ける。"""

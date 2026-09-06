@@ -166,6 +166,16 @@ COGNITO_JWKS_URL = f"{COGNITO_JWT_ISSUER}/.well-known/jwks.json" if COGNITO_USER
 # qol-user-pool の initial_admin_email と一致させること。
 INITIAL_ADMIN_EMAIL = env("INITIAL_ADMIN_EMAIL", default="")
 
+# --- 共通認証基盤（qol-auth-console）---
+# 空なら中央を使わず、従来どおり m_user_allowed_emails だけで判定する。
+# 移行中は「中央 OR m_user_allowed_emails」のどちらかで許可されれば通す
+# （どの時点でも締め出されないため）。
+CENTRAL_AUTHZ_URL = env("CENTRAL_AUTHZ_URL", default="")
+# 認証は全リクエストで走るのでキャッシュする。権限変更の反映が最大この秒数遅れるが、
+# 遅れるのは開放の方向で、締め出しではないので許容する。
+CENTRAL_AUTHZ_CACHE_TTL = env.int("CENTRAL_AUTHZ_CACHE_TTL", default=60)
+CENTRAL_AUTHZ_TIMEOUT = env.float("CENTRAL_AUTHZ_TIMEOUT", default=3.0)
+
 # --- LLM (AI 申請文生成) ---
 # API キーは DB(AiConfig) にユーザー単位で保存する。
 # _BASE_URL を上書きしたい場合（eval-proxy 経由等）に使用。空ならプロバイダ既定。

@@ -15,6 +15,8 @@ class EngagementUrl(models.Model):
     )
     url = models.URLField(max_length=500)
     label = models.CharField(max_length=100, blank=True)
+    # 種別。"repo"=公開リポ（private 案件の public への道）、""=汎用の実績URL。
+    kind = models.CharField(max_length=20, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

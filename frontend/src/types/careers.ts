@@ -31,6 +31,8 @@ export interface EngagementUrl {
   id?: number | null;
   url: string;
   label?: string;
+  /** 種別。"repo"=公開リポ / ""=汎用の実績URL。 */
+  kind?: string;
 }
 
 export interface EngagementDomainLink {
@@ -58,6 +60,8 @@ export interface Engagement {
   tech_categorized?: Record<string, string[]>;
   narrative?: string;
   is_public?: boolean;
+  /** 自社プロダクトか受託かの区別。"own"=自社 / "client"=受託 / ""=未分類。 */
+  engagement_type?: string;
   display_order?: number;
   achievements?: Achievement[];
   urls?: EngagementUrl[];

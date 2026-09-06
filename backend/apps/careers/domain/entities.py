@@ -75,6 +75,9 @@ class EngagementUrlEntity:
 
     url: str
     label: str = ""
+    # URL の種別。"repo"=公開リポ（private 案件の public への道）、""=汎用の実績URL。
+    # 記事の GitHub 動線フッターは kind=="repo" の url を引く。空は従来どおりの実績URL。
+    kind: str = ""
     id: int | None = None
 
 
@@ -142,7 +145,15 @@ class EngagementEntity:
     # ${PUBLICITY_SSD_ROOT} 等の環境変数を含められる(自宅/事務所のマウント差を吸収)。
     # ※このパスはローカル(利用者のPC/SSD)を指すだけで、DBに載っても第三者はデータ取得不可。
     local_path: str = ""
+    # 記事化・スキャンで読むローカルコード配置パスの複数版(1案件が複数リポを持つ)。
+    # 空list なら後方互換で単一 local_path を見る。${PUBLICITY_SSD_ROOT} 等の環境変数可。
+    local_paths: list[str] = field(default_factory=list)
     is_public: bool = False  # 匿名化制御（public 出力時に企業名を伏せるか。公開可＝匿名前提）
+    # 自社プロダクトか受託案件かの区別。"own"=自社リポ（QOL 等・公開リポあり）、
+    # "client"=受託案件（匿名化必須）、""=未分類。真実は skill-inventory の
+    # ledger decision（as_is→own）にあり、取り込み時にマップする。is_public（匿名化制御）
+    # とは別概念なので混同しない。記事化の匿名化ゲート回避や自社リポ実績表示の分岐に使う。
+    engagement_type: str = ""
     display_order: int = 0
     achievements: list[AchievementEntity] = field(default_factory=list)
     urls: list[EngagementUrlEntity] = field(default_factory=list)
@@ -150,6 +161,14 @@ class EngagementEntity:
     id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    def resolved_paths(self) -> list[str]:
+        """記事化・スキャンで読むローカルパスを一意に返す。
+        local_paths(複数) があればそれ、無ければ単一 local_path、両方空なら[]。
+        単一 local_path から複数 local_paths への後方互換をここで吸収する。"""
+        if self.local_paths:
+            return list(self.local_paths)
+        return [self.local_path] if self.local_path else []
 
 
 @dataclass

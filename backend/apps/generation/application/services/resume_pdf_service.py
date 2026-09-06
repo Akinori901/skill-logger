@@ -57,12 +57,32 @@ _ARCHITECTURE_LEAD = (
 # スキル表のカテゴリ分類（採用担当がスキャンしやすいよう技術を役割別に整理）。
 # 各カテゴリ内は年数降順で並べる。どれにも入らない技術は「その他」に集約。
 _SKILL_CATEGORIES: list[tuple[str, list[str]]] = [
-    ("言語", ["PHP", "Python", "JavaScript", "TypeScript", "C#", "C", "SQL", "Shell", "VBScript"]),
-    ("FW・ライブラリ", ["Laravel", "CakePHP", "Django", "Vue", "React", "Next.js", "Nuxt", "Vite", "pandas", "NumPy", "Sanctum"]),
+    (
+        "言語",
+        # Go/Ruby は自社プロダクト(clean-arch-starter 等)由来。案件詳細から自社を外すと
+        # スキル表にしか現れないため、白リストに入れないと実績ごと見えなくなる。
+        # Kotlin/C++/Swift はモバイル案件由来。
+        [
+            "PHP", "Python", "JavaScript", "TypeScript", "C#", "C", "SQL", "Shell", "VBScript",
+            "Go", "Ruby", "Kotlin", "Swift", "C++",
+        ],
+    ),
+    (
+        "FW・ライブラリ",
+        [
+            "Laravel", "CakePHP", "Django", "Vue", "React", "Next.js", "Nuxt", "Vite",
+            "pandas", "NumPy", "Sanctum", "Rails",
+        ],
+    ),
     # DB は「プロダクト」を並べる。SQL は問い合わせ言語なので言語カテゴリへ移動した。
     ("DB", ["MySQL", "PostgreSQL", "DynamoDB", "Redis", "Access"]),
     ("インフラ・CI/CD", ["Docker", "Kubernetes", "Nginx", "Terraform", "GitHub Actions", "GitLab CI", "YAML"]),
-    ("テスト・API", ["PHPUnit", "Vitest", "Cypress", "Selenium", "Swagger"]),
+    # 静的解析(PHPStan/deptrac/packwerk)は「アーキテクチャ規約をCIで機械検証する」
+    # 取り組みの中核なので、テストと同じカテゴリに置いて品質担保の文脈で見せる。
+    (
+        "テスト・品質・API",
+        ["PHPUnit", "Vitest", "Cypress", "Selenium", "Swagger", "PHPStan", "deptrac", "packwerk"],
+    ),
 ]
 
 # 「その他」カテゴリに載せる技術のホワイトリスト。カテゴリ未分類の技術は
@@ -76,6 +96,39 @@ _OTHER_ALLOWLIST = {"JSON", "jQuery", "draw.io", "Blade", "CSS", "HTML"}
 # ※特定案件のみで使った技術は manual_skills で個別指定する(AWS 等)。
 # ※Shell/Bash は「主体的に書いた開発言語」ではなく Docker/CI 付随の運用スクリプトが
 #   主なため基盤技術から除外し、実際に .sh を書いた案件の期間・関与度で年数を出す。
+# 基盤技術の年数係数。基盤技術は「使った案件の期間 union」に対してこの係数を掛ける。
+# Dockerfile/CI 設定は案件開始時に書いて以降ほぼ触らないため、案件期間をそのまま
+# 経験年数にすると過大になる。逆にキャリア全期間フルカウント(旧実装)はさらに過大で、
+# 「10年 Nginx を書き続けた」という誤った印象を与えていた。
+_FOUNDATION_RATIO = 0.6
+
+# detected(存在検出)の年数係数。取込時、composer.json/package.json 等のマーカーで
+# 「そのプロジェクトで使った」と判定された技術には重み 1.0 が入る(import_from_inventory)。
+# これは"使った事実"であって"どれだけ書いたか"ではないため、1.0 のまま案件期間を
+# フル計上すると Redis/Sanctum が主力言語と同じ年数になってしまう。
+# git の言語比率(小数の重み)が付いている技術はその実測値を使うので、この係数は
+# 「重みがちょうど1.0＝実測がなく検出のみ」の技術にだけ掛ける。
+_DETECTED_RATIO = 0.4
+
+# 主力技術: detected 係数・git実測重みのどちらでも割り引かず、使った案件の期間を
+# そのまま経験年数にする技術。「そのプロジェクトに存在した」ではなく「毎日それを
+# 書いていた」と言える中核スタックだけをここに置く。
+# 例: Laravel/PHP は 2017-09 以降ほぼ切れ目なく(union 106ヶ月・空白2ヶ月)案件が続く
+# 主力なので、detected 係数(0.4)で割ると 8.8年→4.4年 と実態から大きく外れる。
+# 追加は慎重に。ここに入れた技術は必ず「案件期間＝その技術の経験期間」になる。
+_CORE_TECH = {
+    "PHP",
+    "Laravel",
+}
+
+# スキル表に載せる最小年数。これ未満は「0.0年」の空バー行になり見栄えも情報量も悪いため
+# 表から落とす。見せたい技術は manual_skills に実務年数を入れれば表に出る。
+_MIN_DISPLAY_YEARS = 0.5
+
+# 基盤技術: 案件開始時に構築して以降ほぼ触らない技術。稼働期間をそのまま経験年数に
+# すると過大になるため、使った案件の union に _FOUNDATION_RATIO を掛ける。
+# GitHub Actions/Terraform/Swagger も「最初に数日で組んで、あとは動き続ける」性質が
+# 同じなのでここに含める(CI 定義や API 定義を毎日書くわけではない)。
 _FOUNDATION_TECH = {
     "Docker",
     "SQL",
@@ -84,6 +137,11 @@ _FOUNDATION_TECH = {
     "YAML",
     "Makefile",
     "Nginx",
+    "GitHub Actions",
+    "GitLab CI",
+    "Terraform",
+    "Kubernetes",
+    "Swagger",
 }
 
 # 非技術(設定/環境/雑多ファイルの拡張子)。git集計で拡張子=言語名にすると
@@ -317,11 +375,18 @@ _TECH_CANONICAL = {
     "css": "CSS",
     "sql": "SQL",
     "shell": "Shell",
-    "dockerfile": "Docker",
-    "docker": "Docker",
     "makefile": "Makefile",
-    "hcl": "HCL",
+    # HCL は Terraform の設定言語。別行に分けると同じスキルが2行になるため名寄せする。
+    "hcl": "Terraform",
     "yaml": "YAML",
+    "golang": "Go",
+    "go": "Go",
+    "ruby": "Ruby",
+    "ruby on rails": "Rails",
+    "rails": "Rails",
+    "kotlin": "Kotlin",
+    "swift": "Swift",
+    "c++": "C++",
 }
 
 
@@ -360,18 +425,25 @@ class ResumePdfService:
         *,
         anonymize: bool = True,
         hide_name: bool = False,
+        include_own: bool = False,
     ) -> bytes:
         """PDF を生成する。
 
         Args:
-            engagements: 対象案件。
+            engagements: 対象案件。スキル集計は常にこの全件を使う。
             profile: UserProfileEntity（Phase 3 で導入）。None の場合はサマリの
                 プロフィール欄を省略しスキルマトリクスのみ表示する。
             anonymize: True（既定）なら企業名を出さず業界＋規模で代替する。
             hide_name: True なら氏名を出さない（企業名の anonymize と独立したスライダー）。
                 エージェント経由の提出など、氏名を伏せたまま経歴を渡す場合に使う。
+            include_own: False（既定）なら自社プロダクト(engagement_type=="own")を
+                「職務経歴（案件詳細）」から除き、外部参加案件だけを載せる。
+                スキル年数・主要スキルチップ・バージョン表記は除外の対象外で、
+                常に自社プロダクトを含めて集計する（自己研鑽も経験年数には効くため）。
         """
-        html = self._build_html(engagements, profile, anonymize=anonymize, hide_name=hide_name)
+        html = self._build_html(
+            engagements, profile, anonymize=anonymize, hide_name=hide_name, include_own=include_own
+        )
         # 遅延 import: weasyprint はネイティブ依存を要するため、import 時点で
         # 環境が整っていない場合のエラーを PDF 生成時に閉じ込める。
         from weasyprint import HTML  # noqa: PLC0415
@@ -387,11 +459,20 @@ class ResumePdfService:
         *,
         anonymize: bool,
         hide_name: bool = False,
+        include_own: bool = False,
     ) -> str:
         # 2ゾーン構成: サマリ（スキルマトリクス込み）→ 案件詳細。
         # 末尾のスキルシートはサマリのスキルマトリクスと重複するため廃止。
-        summary = self._render_summary(engagements, profile, hide_name=hide_name)
-        details = self._render_details(engagements, anonymize=anonymize)
+        # サマリ(スキル年数/チップ/バージョン)は常に全案件から集計し、
+        # 案件詳細だけを include_own で絞る。この非対称がこの機能の要件そのもの。
+        detail_targets = [e for e in engagements if include_own or e.engagement_type != "own"]
+        # 実際に除外が起きたときだけスキル欄に注記を出す（include_own=True や
+        # 自社プロダクトが1件も無い場合は、事実と合わない注記を出さない）。
+        omitted_own = len(detail_targets) < len(engagements)
+        summary = self._render_summary(
+            engagements, profile, hide_name=hide_name, omitted_own=omitted_own
+        )
+        details = self._render_details(detail_targets, anonymize=anonymize)
         return (
             f"<html><head><meta charset='utf-8'><style>{_CSS}</style></head>"
             f"<body>{summary}"
@@ -401,7 +482,12 @@ class ResumePdfService:
     # --- ゾーン1: サマリシート ---
 
     def _render_summary(
-        self, engagements: list[EngagementEntity], profile: object | None, *, hide_name: bool = False
+        self,
+        engagements: list[EngagementEntity],
+        profile: object | None,
+        *,
+        hide_name: bool = False,
+        omitted_own: bool = False,
     ) -> str:
         parts: list[str] = []
         # ヒーロー（氏名・肩書・自己紹介リード・主要スキルチップ）を1ブロックに。
@@ -410,6 +496,14 @@ class ResumePdfService:
         # スキル・経験（カテゴリ別カード・バージョン付き）
         parts.append("<h2>スキル・経験</h2>")
         parts.append(self._render_skill_matrix(engagements))
+        # 案件詳細から自社プロダクトを外したときだけ、年数・件数との差の理由を明示する。
+        # スキル欄は「5.2年 8件」のように件数まで出すため、注記が無いと案件詳細に
+        # 載っていない件数が読み手に不整合として映る。
+        if omitted_own:
+            parts.append(
+                "<p class='muted'>※年数・件数は自社プロダクトを含む。"
+                "案件詳細は外部参加案件のみ記載。</p>"
+            )
 
         # 生成AI活用（取り組み＋ツール表）。AI駆動開発は今後の注目ポイントなので前面に。
         parts.append("<h2>生成AI活用・AI駆動開発</h2>")
@@ -605,12 +699,29 @@ class ResumePdfService:
     def _should_mask_company(self, e: EngagementEntity, *, anonymize: bool) -> bool:
         """この案件の企業名を伏せるか。
         ルール:
-          - is_public=False（絶対に実名を出さない企業）: スライダーに関わらず常に伏せる。
-          - is_public=True（実名を出してよい企業）: スライダー(anonymize)に従う。
+          - is_public=True（公開出力に載せる案件）: 公開可＝匿名前提なので、
+            anonymize スライダーに関わらず常に伏せる。安全側に倒すのが目的で、
+            スライダーOFF（実名表示）でも公開前提の案件だけは実名を出さない。
+          - is_public=False（通常の案件）: スライダー(anonymize)に従う。
         """
-        if not e.is_public:
+        if e.is_public:
             return True
         return anonymize
+
+    @staticmethod
+    def _contains_real_name(text: str, e: EngagementEntity) -> bool:
+        """text に案件の実名（企業名/案件先/SIer/エージェント）が含まれるか。
+
+        見出しに使う title が実名そのもの・実名入りのときに真。マスク時の
+        見出し採用可否の判定に使う（真なら見出しから落として匿名見出しに倒す）。
+        """
+        names = [
+            (e.company_name or "").strip(),
+            (e.client or "").strip(),
+            (e.sier or "").strip(),
+            (e.agent or "").strip(),
+        ]
+        return any(n and n in text for n in names)
 
     def _mask_free_text(self, text: str, e: EngagementEntity, *, anonymize: bool) -> str:
         """自由文（概要・担当・実績）に紛れた実名を伏せる。
@@ -661,6 +772,11 @@ class ResumePdfService:
         title = (e.title or "").replace("[inv] ", "").strip()
         amap = alias_map or {}
         if self._should_mask_company(e, anonymize=anonymize):
+            # 案件名そのものが実名のことがある（skill-inventory 取込は "[inv] <会社名>" を
+            # title に入れるため）。company_name を伏せても title 経由で同じ文字列が
+            # 漏れるので、実名と一致する/実名を含む title は見出しから落とす。
+            if title and self._contains_real_name(title, e):
+                title = ""
             sier = (e.sier or "").strip()
             if sier:
                 # 企業A（SIer） / メーカー業種 / 案件名
@@ -862,19 +978,20 @@ class ResumePdfService:
 
         Returns: [(技術, 年数, 案件数)] を (年数降順, 名前昇順) で。
         """
-        # manual_skills で年数指定された技術は「期間フルカウント」の対象外にする。
-        # pandas 等のライブラリはコードに大量には書かないので frameworks 由来の
-        # 重み1.0で期間フル計上すると過大になる。指定年数を正とする。
-        manual_years: dict[str, float] = {}
+        # manual_skills は「その案件で実際に使った年数」＝案件ごとの寄与。
+        # 旧実装は max() で全案件の最大値を採り、それを技術の総年数として使っていたため、
+        # PHP を 23 案件でやっていても最大の1案件分(1.5年)しか出ないという過少評価だった。
+        # ここでは案件ごとに分けて持ち、後段で月 union に合算する(重複期間は二重に数えない)。
+        manual_by_engagement: list[tuple[EngagementEntity, dict[str, float]]] = []
+        manual_techs: set[str] = set()
         for e in engagements:
-            for tech, yrs in (getattr(e, "manual_skills", None) or {}).items():
-                t = _canonical_tech(tech)
-                manual_years[t] = max(manual_years.get(t, 0.0), float(yrs))
-
-        # キャリア全期間(最古開始〜最新終了の連続月数)。基盤技術の年数に使う。
-        # 基盤技術は「キャリアを通じて使い続ける」ので案件間の空白も含めた連続期間。
-        spans = [s for s in (self._period_span(e) for e in engagements) if s]
-        career_months = (max(t for _, t in spans) - min(s for s, _ in spans) + 1) if spans else 0
+            ms = {
+                _canonical_tech(tech): float(yrs)
+                for tech, yrs in (getattr(e, "manual_skills", None) or {}).items()
+            }
+            if ms:
+                manual_by_engagement.append((e, ms))
+                manual_techs |= set(ms)
 
         # tech -> {月インデックス: その月の最大関与度}
         month_weight: dict[str, dict[int, float]] = {}
@@ -890,14 +1007,42 @@ class ResumePdfService:
             for k, v in raw_weights.items():
                 ck = _canonical_tech(k)
                 weights[ck] = max(weights.get(ck, 0.0), v)
+            e_manual = {
+                _canonical_tech(t): float(v)
+                for t, v in (getattr(e, "manual_skills", None) or {}).items()
+            }
             for tech in set(self._all_techs(e)):
                 if tech in _NON_TECH_TOKENS:  # 設定/環境/雑多ファイル(env/conf 等)は技術でない
                     continue
                 counts[tech] = counts.get(tech, 0) + 1
-                # 手動年数指定・基盤技術は個別ロジックで年数を出すので期間集計しない。
-                if tech in manual_years or tech in _FOUNDATION_TECH or span is None:
+                # この案件で manual_skills 指定がある技術は、指定年数を「その案件での実績」
+                # として後段で確保する。期間集計に混ぜると指定より長くなり、pandas のように
+                # 重み1.0で期間フル計上される過大評価が戻ってしまう。
+                # ただし主力技術は案件期間そのものが経験期間なので、manual_skills による
+                # 頭打ちを適用しない(PHP 1.5 等の案件単位の値で 8.8年 が削られるのを防ぐ)。
+                if tech in e_manual and tech not in _CORE_TECH:
                     continue
-                w = weights.get(tech, 1.0)  # 重み未設定は1.0(従来どおりフルカウント)
+                # 基盤技術は後段で「union×係数」にするので、ここでは重み1.0で月を記録する。
+                if span is None:
+                    continue
+                if tech in _FOUNDATION_TECH:
+                    mw_f = month_weight.setdefault(tech, {})
+                    for m in range(span[0], span[1] + 1):
+                        mw_f[m] = max(mw_f.get(m, 0.0), 1.0)
+                    continue
+                # 主力技術は案件期間をそのまま経験年数にする(重みで割り引かない)。
+                if tech in _CORE_TECH:
+                    w = 1.0
+                else:
+                    # 重みが明示的に 1.0 の技術は「detected(存在検出)」＝実測ではないので
+                    # 係数で割り引く。git 言語比率由来の小数重みは実測なのでそのまま使う。
+                    # 重み自体が無い技術(手入力の tech_stack 等)は情報が無いので従来どおり
+                    # フルカウントする(取込データでない＝人が意図して書いた技術のため)。
+                    w = weights.get(tech)
+                    if w is None:
+                        w = 1.0
+                    elif w >= 1.0:
+                        w = _DETECTED_RATIO
                 if w <= 0:
                     continue
                 mw = month_weight.setdefault(tech, {})
@@ -905,15 +1050,32 @@ class ResumePdfService:
                     if w > mw.get(m, 0.0):
                         mw[m] = w
 
+        # manual_skills の寄与を月 union に反映する。案件期間のうち「指定年数ぶんの月数」を
+        # その案件の期間内から確保する(期間より長い指定は期間で頭打ち)。重みは1.0扱い。
+        # 同一月が複数案件で埋まっても union なので二重には数えない。
+        for e, ms in manual_by_engagement:
+            span = self._period_span(e)
+            if span is None:
+                continue
+            span_months = span[1] - span[0] + 1
+            for tech, yrs in ms.items():
+                months = min(int(round(yrs * 12)), span_months)
+                if months <= 0:
+                    continue
+                mw_m = month_weight.setdefault(tech, {})
+                for m in range(span[0], span[0] + months):
+                    mw_m[m] = max(mw_m.get(m, 0.0), 1.0)
+
         result: list[tuple[str, float, int]] = []
-        all_techs = (set(counts) | set(manual_years)) - _NON_TECH_TOKENS
+        all_techs = (set(counts) | manual_techs) - _NON_TECH_TOKENS
         for tech in all_techs:
-            if tech in manual_years:
-                years = manual_years[tech]  # 手動指定の年数を正とする
-            elif tech in _FOUNDATION_TECH:
-                years = career_months / 12  # 基盤技術はキャリア全期間
-            else:
-                years = sum(month_weight.get(tech, {}).values()) / 12
+            years = sum(month_weight.get(tech, {}).values()) / 12
+            if tech in _FOUNDATION_TECH:
+                # 使った案件の union に係数を掛ける。キャリア全期間(career_months)は
+                # 「使っていない案件の期間」まで含むため使わない。
+                years *= _FOUNDATION_RATIO
+            if years < _MIN_DISPLAY_YEARS:
+                continue  # 0.0年の空バー行を作らない
             result.append((tech, round(years, 1), counts.get(tech, 0)))
         return sorted(result, key=lambda x: (-x[1], x[0]))
 

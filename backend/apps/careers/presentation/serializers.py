@@ -42,6 +42,8 @@ class EngagementUrlSerializer(serializers.Serializer[dict[str, Any]]):
     label = serializers.CharField(  # type: ignore[assignment]
         max_length=100, required=False, allow_blank=True, default=""
     )
+    # 種別。"repo"=公開リポ（private 案件の public への道）、""=汎用の実績URL。
+    kind = serializers.CharField(max_length=20, required=False, allow_blank=True, default="")
 
 
 class EngagementDomainLinkSerializer(serializers.Serializer[dict[str, Any]]):
@@ -85,7 +87,12 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
     project_key = serializers.CharField(max_length=50, required=False, allow_blank=True, default="")
     is_active = serializers.BooleanField(required=False, default=False)
     local_path = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    local_paths = serializers.ListField(
+        child=serializers.CharField(max_length=500), required=False, default=list
+    )
     is_public = serializers.BooleanField(required=False, default=False)
+    # 自社/受託の区別。"own"/"client"/""(未分類)。is_public(匿名化制御)とは別概念。
+    engagement_type = serializers.CharField(max_length=20, required=False, allow_blank=True, default="")
     display_order = serializers.IntegerField(required=False, default=0)
     achievements = AchievementSerializer(many=True, required=False, default=list)
     urls = EngagementUrlSerializer(many=True, required=False, default=list)
@@ -138,7 +145,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             project_key=d.get("project_key", ""),
             is_active=d.get("is_active", False),
             local_path=d.get("local_path", ""),
+            local_paths=list(d.get("local_paths", [])),
             is_public=d.get("is_public", False),
+            engagement_type=d.get("engagement_type", ""),
             display_order=d.get("display_order", 0),
             achievements=[
                 AchievementEntity(
@@ -153,7 +162,10 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
                 for a in d.get("achievements", [])
             ],
             urls=[
-                EngagementUrlEntity(id=u.get("id"), url=u["url"], label=u.get("label", "")) for u in d.get("urls", [])
+                EngagementUrlEntity(
+                    id=u.get("id"), url=u["url"], label=u.get("label", ""), kind=u.get("kind", "")
+                )
+                for u in d.get("urls", [])
             ],
             domain_links=[
                 EngagementDomainLink(
@@ -191,7 +203,9 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
             "project_key": entity.project_key,
             "is_active": entity.is_active,
             "local_path": entity.local_path,
+            "local_paths": entity.local_paths,
             "is_public": entity.is_public,
+            "engagement_type": entity.engagement_type,
             "display_order": entity.display_order,
             "created_at": entity.created_at,
             "updated_at": entity.updated_at,
@@ -207,7 +221,7 @@ class EngagementSerializer(serializers.Serializer[dict[str, Any]]):
                 }
                 for a in entity.achievements
             ],
-            "urls": [{"id": u.id, "url": u.url, "label": u.label} for u in entity.urls],
+            "urls": [{"id": u.id, "url": u.url, "label": u.label, "kind": u.kind} for u in entity.urls],
             "domain_links": [
                 {"id": link.id, "support_domain_id": link.support_domain_id, "relevance": link.relevance}
                 for link in entity.domain_links

@@ -31,11 +31,19 @@ export const generationApi = {
   },
   /** 職務経歴書＋スキルシートを1つのPDFとして取得する（バイナリ）。
    * anonymize=true（既定）で企業名を伏せ、業界＋規模で代替する。
-   * hideName=true で氏名を伏せる（anonymize とは独立。片方だけ伏せることもできる）。 */
-  exportPdf: async (ids?: number[], anonymize = true, hideName = false): Promise<Blob> => {
+   * hideName=true で氏名を伏せる（anonymize とは独立。片方だけ伏せることもできる）。
+   * includeOwn=false（既定）で自社プロダクトを案件詳細から外し、外部参加案件だけ載せる。
+   * スキル年数・主要スキルチップ・バージョン表記は includeOwn に関わらず常に全案件から集計する。 */
+  exportPdf: async (
+    ids?: number[],
+    anonymize = true,
+    hideName = false,
+    includeOwn = false,
+  ): Promise<Blob> => {
     const params: Record<string, string> = {
       anonymize: String(anonymize),
       hide_name: String(hideName),
+      include_own: String(includeOwn),
     };
     if (ids && ids.length) params.ids = ids.join(",");
     const { data } = await apiClient.get("/generation/engagements/pdf/", {
