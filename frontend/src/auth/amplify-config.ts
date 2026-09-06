@@ -1,5 +1,5 @@
 /**
- * AWS Amplify Auth (Cognito) 設定。共通基盤 qol-user-pool を使う。
+ * AWS Amplify Auth (Cognito) 設定。共通基盤 cognito-auth-service を使う。
  *
  * `main.tsx` から副作用 import されることで `Amplify.configure()` が呼ばれる。
  * 環境変数 VITE_COGNITO_* が空の場合は configure をスキップする

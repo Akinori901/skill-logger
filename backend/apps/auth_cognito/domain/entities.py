@@ -28,7 +28,7 @@ class CognitoClaimsEntity:
 
 @dataclass(frozen=True)
 class CentralAuthzEntity:
-    """共通認証基盤（qol-auth-console）が返した認可の判断。
+    """共通認証基盤（auth-console）が返した認可の判断。
 
     「判断が得られなかった」ことは None で表し、このエンティティでは表さない。
     拒否（allowed=False）と混ぜると、中央が落ちたときに全員が締め出されるため。

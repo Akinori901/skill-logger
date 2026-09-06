@@ -6,7 +6,7 @@ Usage:
 
 - 管理者ユーザー（admin/admin1234）はローカル開発・admin 画面用。
 - Cognito ログイン用の許可 email（m_user_allowed_emails）を初期登録する。
-  env INITIAL_ADMIN_EMAIL（= qol-user-pool の initial_admin_email）で指定した
+  env INITIAL_ADMIN_EMAIL（= cognito-auth-service の initial_admin_email）で指定した
   メールを、Cognito ログインする superuser に紐付ける。これがログイン締め出しを
   防ぐ第2の関門（第1は Cognito 側の初期ユーザー）。両方に登録されて初めて通る。
 - 支援領域マスタ（Expert 申請の12領域）は careers の seed_support_domains に委譲する。

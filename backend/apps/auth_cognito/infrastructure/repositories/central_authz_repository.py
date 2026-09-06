@@ -1,4 +1,4 @@
-"""共通認証基盤（qol-auth-console）への認可問い合わせ実装。"""
+"""共通認証基盤（auth-console）への認可問い合わせ実装。"""
 
 from __future__ import annotations
 

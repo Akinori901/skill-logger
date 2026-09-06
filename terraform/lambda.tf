@@ -35,7 +35,7 @@ resource "aws_lambda_function" "api" {
       # AI 申請文生成: プロバイダ既定エンドポイントを使うため空。
       # eval-proxy 等で上書きしたい場合のみ値を設定する。
       LLM_API_BASE_URL = ""
-      # Cognito 認証（共通基盤 qol-user-pool）。未設定時は CognitoJWTAuthentication が
+      # Cognito 認証（共通基盤 cognito-auth-service）。未設定時は CognitoJWTAuthentication が
       # 常に None を返すため、値が揃うまで認証は無効（＝仮認証時代と同じく全通過ではなく 401）。
       COGNITO_USER_POOL_ID  = var.cognito_user_pool_id
       COGNITO_REGION        = var.aws_region

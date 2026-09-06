@@ -149,7 +149,7 @@ class EngagementEntity:
     # 空list なら後方互換で単一 local_path を見る。${PUBLICITY_SSD_ROOT} 等の環境変数可。
     local_paths: list[str] = field(default_factory=list)
     is_public: bool = False  # 匿名化制御（public 出力時に企業名を伏せるか。公開可＝匿名前提）
-    # 自社プロダクトか受託案件かの区別。"own"=自社リポ（QOL 等・公開リポあり）、
+    # 自社プロダクトか受託案件かの区別。"own"=自社リポ（自社リポ・公開リポあり）、
     # "client"=受託案件（匿名化必須）、""=未分類。真実は skill-inventory の
     # ledger decision（as_is→own）にあり、取り込み時にマップする。is_public（匿名化制御）
     # とは別概念なので混同しない。記事化の匿名化ゲート回避や自社リポ実績表示の分岐に使う。

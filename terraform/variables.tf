@@ -30,31 +30,31 @@ variable "s3_bucket_name" {
 }
 
 # -----------------------------------------------------------------------------
-# Cognito 認証（共通基盤 qol-user-pool）
+# Cognito 認証（共通基盤 cognito-auth-service）
 # -----------------------------------------------------------------------------
-# 値は qol-user-pool の `terraform output` から取得して tfvars に設定する。
+# 値は cognito-auth-service の `terraform output` から取得して tfvars に設定する。
 # Pool ID / Client ID / domain prefix は公開情報だが、運用の一貫性のため tfvars で管理する。
 
 variable "cognito_user_pool_id" {
-  description = "Cognito User Pool ID（qol-user-pool の user_pool_id）"
+  description = "Cognito User Pool ID（cognito-auth-service の user_pool_id）"
   type        = string
   default     = ""
 }
 
 variable "cognito_web_client_id" {
-  description = "Cognito App Client ID（qol-user-pool の skilllogger_web_client_id）"
+  description = "Cognito App Client ID（cognito-auth-service の skilllogger_web_client_id）"
   type        = string
   default     = ""
 }
 
 variable "cognito_domain_prefix" {
-  description = "Cognito Hosted UI ドメイン prefix（qol-user-pool の domain_prefix、例: qol-auth）"
+  description = "Cognito Hosted UI ドメイン prefix（cognito-auth-service の domain_prefix、例: auth）"
   type        = string
   default     = ""
 }
 
 variable "initial_admin_email" {
-  description = "初期管理者メール（seed が m_user_allowed_emails に登録。締め出し防止。qol-user-pool と一致させる）"
+  description = "初期管理者メール（seed が m_user_allowed_emails に登録。締め出し防止。cognito-auth-service と一致させる）"
   type        = string
   sensitive   = true
   default     = ""
