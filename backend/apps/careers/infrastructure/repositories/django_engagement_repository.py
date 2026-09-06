@@ -96,7 +96,9 @@ class DjangoEngagementRepository(EngagementRepository):
         row.project_key = entity.project_key
         row.is_active = entity.is_active
         row.local_path = entity.local_path
+        row.local_paths = entity.local_paths
         row.is_public = entity.is_public
+        row.engagement_type = entity.engagement_type
         row.display_order = entity.display_order
         row.save()
 
@@ -119,7 +121,7 @@ class DjangoEngagementRepository(EngagementRepository):
 
         row.urls.all().delete()
         EngagementUrl.objects.bulk_create(
-            [EngagementUrl(engagement=row, url=u.url, label=u.label) for u in entity.urls]
+            [EngagementUrl(engagement=row, url=u.url, label=u.label, kind=u.kind) for u in entity.urls]
         )
 
         row.domain_links.all().delete()
@@ -171,7 +173,9 @@ class DjangoEngagementRepository(EngagementRepository):
             project_key=row.project_key,
             is_active=row.is_active,
             local_path=row.local_path,
+            local_paths=list(row.local_paths or []),
             is_public=row.is_public,
+            engagement_type=row.engagement_type,
             display_order=row.display_order,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -187,7 +191,7 @@ class DjangoEngagementRepository(EngagementRepository):
                 )
                 for a in row.achievements.all()
             ],
-            urls=[EngagementUrlEntity(id=u.id, url=u.url, label=u.label) for u in row.urls.all()],
+            urls=[EngagementUrlEntity(id=u.id, url=u.url, label=u.label, kind=u.kind) for u in row.urls.all()],
             domain_links=[
                 EngagementDomainLink(
                     id=link.id,

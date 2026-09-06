@@ -47,7 +47,12 @@ class Engagement(models.Model):
     is_active = models.BooleanField(default=False)
     # 記事化で読むローカルのコード配置パス(利用者のPC/SSD)。worker が収穫対象にする。
     local_path = models.CharField(max_length=500, blank=True, default="")
+    # 記事化・スキャンで読むローカルパスの複数版。空list=単一 local_path を見る(後方互換)。
+    local_paths = models.JSONField(default=list, blank=True)
     is_public = models.BooleanField(default=False)
+    # 自社プロダクトか受託案件かの区別。"own"/"client"/""(未分類)。
+    # is_public(匿名化制御)とは別概念。真実は skill-inventory ledger の decision(as_is→own)。
+    engagement_type = models.CharField(max_length=20, blank=True, default="")
     display_order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

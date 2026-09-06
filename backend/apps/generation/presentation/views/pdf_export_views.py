@@ -27,10 +27,18 @@ class PdfExportView(APIView):
         # hide_name は既定 False（氏名を出す）。"true" のときだけ氏名を伏せる。
         # anonymize（企業名）とは独立したスライダーで、片方だけ伏せる運用もできる。
         hide_name = request.query_params.get("hide_name", "false").lower() == "true"
+        # include_own は既定 False（自社プロダクトを案件詳細に載せない）。
+        # 職務経歴書は「外部参加案件の実績」を示す文書なので、自社プロダクトは既定で外す。
+        # ただしスキル年数・バージョン表記は自社プロダクトも含めて集計する（PDF サービス側の責務）。
+        include_own = request.query_params.get("include_own", "false").lower() == "true"
 
         usecase = container.export_engagements_pdf_usecase()
         pdf_bytes = usecase.execute(
-            current_user_id(request), engagement_ids, anonymize=anonymize, hide_name=hide_name
+            current_user_id(request),
+            engagement_ids,
+            anonymize=anonymize,
+            hide_name=hide_name,
+            include_own=include_own,
         )
 
         response = HttpResponse(pdf_bytes, content_type="application/pdf")

@@ -7,10 +7,23 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from apps.auth_cognito.domain.entities import (
+        CentralAuthzEntity,
         CognitoLinkEntity,
         CognitoUserInfo,
         UserAllowedEmailEntity,
     )
+
+
+class CentralAuthzRepository(ABC):
+    """共通認証基盤（qol-auth-console）への認可問い合わせ。"""
+
+    @abstractmethod
+    def fetch(self, email: str) -> CentralAuthzEntity | None:
+        """中央の判断を取得する。
+
+        返り値の None は「判断が得られなかった」を意味する
+        （未設定・到達できない・エラー）。拒否とは区別すること。
+        """
 
 
 class CognitoLinkRepository(ABC):

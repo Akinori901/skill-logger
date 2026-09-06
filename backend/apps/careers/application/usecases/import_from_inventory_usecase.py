@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from apps.careers.domain.entities import EngagementEntity
+from apps.careers.domain.entities import EngagementEntity, EngagementUrlEntity
 
 if TYPE_CHECKING:
     from apps.careers.domain.repositories import EngagementRepository
@@ -98,6 +98,18 @@ class ImportFromInventoryUseCase:
                 prior = existing_by_title.get(entity.title)
             if prior is not None:
                 entity.id = prior.id
+                # 既存案件の更新では、手動で入れた値を feed が壊さないよう温存する。
+                # - engagement_type: feed が分類を出せない（decision 無し）ときは手動値を残す。
+                # - urls: feed が持つのは repo（kind="repo"）だけ。手動で足した他の実績URLは
+                #   prior から引き継ぐ（子テーブルは save で全削除→再作成されるため）。
+                if not entity.engagement_type:
+                    entity.engagement_type = prior.engagement_type
+                non_repo_urls = [u for u in prior.urls if u.kind != "repo"]
+                if not entity.urls:
+                    # feed に repo_url が無ければ、prior の repo リンクも温存する。
+                    entity.urls = list(prior.urls)
+                else:
+                    entity.urls = non_repo_urls + entity.urls
 
             if not dry_run:
                 self._repo.save(entity)
@@ -166,11 +178,31 @@ class ImportFromInventoryUseCase:
         # （例「業務システム開発企業」）。両者を分けて持つことで、実名/匿名を出し分けられる。
         company_name = item.get("company_name") or item.get("display_name", "")
         client = item.get("client", "")
+
+        # 自社/受託の区別。真実は ledger の decision（as_is=自社帰属）。
+        # feed の decision を engagement_type に引き継ぐ（as_is→own、それ以外→client）。
+        # decision が無い feed（旧版）は未分類のまま（空）にして既存挙動を壊さない。
+        decision = item.get("decision")
+        engagement_type = ""
+        if decision == "as_is":
+            engagement_type = "own"
+        elif decision in ("metadata_only", "anonymize"):
+            engagement_type = "client"
+
+        # 公開リポ URL（feed が github 走査由来なら repo_url を持つ）を kind="repo" の
+        # 実績URLとして載せる。private 案件の public への道。無ければ付けない。
+        urls: list[EngagementUrlEntity] = []
+        repo_url = (item.get("repo_url") or "").strip()
+        if repo_url:
+            urls.append(EngagementUrlEntity(url=repo_url, label="GitHub", kind="repo"))
+
         return EngagementEntity(
             user_id=user_id,
             title=title,
             company_name=company_name,
             client=client,
+            engagement_type=engagement_type,
+            urls=urls,
             # feed の source_key = ledger/projects.yaml の key。案件レジストリの共通キー。
             project_key=item.get("source_key", ""),
             industry=item.get("industry", ""),

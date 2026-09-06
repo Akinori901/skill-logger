@@ -27,6 +27,209 @@ class TestResumePdfHtml:
         assert "page-break-inside: avoid" in html  # 案件カードは分断されない
         assert "ecard" in html  # 案件はカード形式
 
+    def test_own_engagement_excluded_from_details_by_default(self) -> None:
+        """既定(include_own=False)では自社プロダクトが案件詳細に出ない。"""
+        es = [
+            EngagementEntity(user_id=1, title="受託案件X", engagement_type="client"),
+            EngagementEntity(user_id=1, title="自社プロダクトY", engagement_type="own"),
+        ]
+        html = _svc()._build_html(es, None, anonymize=False)
+        assert "受託案件X" in html
+        assert "自社プロダクトY" not in html
+
+    def test_own_engagement_shown_in_details_when_included(self) -> None:
+        """include_own=True なら自社プロダクトも案件詳細に載る。"""
+        es = [
+            EngagementEntity(user_id=1, title="受託案件X", engagement_type="client"),
+            EngagementEntity(user_id=1, title="自社プロダクトY", engagement_type="own"),
+        ]
+        html = _svc()._build_html(es, None, anonymize=False, include_own=True)
+        assert "受託案件X" in html
+        assert "自社プロダクトY" in html
+
+    def test_unclassified_engagement_kept_in_details(self) -> None:
+        """engagement_type 未分類("")は外部参加案件側として残す（誤って消さない）。"""
+        es = [EngagementEntity(user_id=1, title="未分類案件Z", engagement_type="")]
+        html = _svc()._build_html(es, None, anonymize=False)
+        assert "未分類案件Z" in html
+
+    def test_own_engagement_still_counted_in_skill_years(self) -> None:
+        """自社プロダクトは案件詳細から外れてもスキル年数には効く。
+
+        この非対称がこの機能の要件そのもの（自己研鑽も経験年数として数える）。
+        """
+        es = [
+            EngagementEntity(
+                user_id=1,
+                title="受託案件X",
+                engagement_type="client",
+                period_start="2024-01",
+                period_end="2024-06",
+                tech_stack=["Python"],
+            ),
+            EngagementEntity(
+                user_id=1,
+                title="自社プロダクトY",
+                engagement_type="own",
+                period_start="2024-01",
+                period_end="2024-06",
+                tech_stack=["Go"],
+            ),
+        ]
+        html = _svc()._build_html(es, None, anonymize=False)
+        # 案件詳細からは消えるが、集計には自社プロダクトの技術が残る。
+        assert "自社プロダクトY" not in html
+        stats = {t: y for t, y, _ in _svc()._aggregate_skill_years(es)}
+        assert "Go" in stats  # 自社プロダクト由来の技術が年数に効いている
+        assert "Python" in stats
+        # ヒーローの主要スキルチップにも出る（チップはカテゴリ白リストを通さない）。
+        assert "Go" in html
+
+    def test_own_engagement_versions_kept_in_skill_matrix(self) -> None:
+        """自社プロダクトのバージョン表記もスキル欄には残る。"""
+        e = EngagementEntity(
+            user_id=1,
+            title="自社プロダクトY",
+            engagement_type="own",
+            period_start="2024-01",
+            period_end="2024-06",
+            tech_stack=["Laravel"],
+            tech_versions={"Laravel": "11.0"},
+        )
+        assert _svc()._skill_version_ranges([e]).get("Laravel") == "11.0"
+        html = _svc()._build_html([e], None, anonymize=False)
+        assert "11.0" in html
+
+    def test_details_empty_when_all_engagements_are_own(self) -> None:
+        """全件が自社プロダクトなら案件詳細は空メッセージになる（スキル欄は残る）。"""
+        es = [
+            EngagementEntity(
+                user_id=1,
+                title="自社プロダクトY",
+                engagement_type="own",
+                period_start="2024-01",
+                period_end="2024-06",
+                tech_stack=["Python"],
+            )
+        ]
+        html = _svc()._build_html(es, None, anonymize=False)
+        assert "対象の案件がありません" in html
+        assert "Python" in html
+
+    def test_note_shown_when_own_omitted(self) -> None:
+        """自社プロダクトを実際に外したときはスキル欄に注記が出る。"""
+        es = [
+            EngagementEntity(user_id=1, title="受託案件X", engagement_type="client"),
+            EngagementEntity(user_id=1, title="自社プロダクトY", engagement_type="own"),
+        ]
+        html = _svc()._build_html(es, None, anonymize=False)
+        assert "※年数・件数は自社プロダクトを含む" in html
+        assert "案件詳細は外部参加案件のみ記載" in html
+
+    def test_note_hidden_when_own_included(self) -> None:
+        """include_own=True なら除外が起きないので注記を出さない。"""
+        es = [
+            EngagementEntity(user_id=1, title="受託案件X", engagement_type="client"),
+            EngagementEntity(user_id=1, title="自社プロダクトY", engagement_type="own"),
+        ]
+        html = _svc()._build_html(es, None, anonymize=False, include_own=True)
+        assert "※年数・件数は自社プロダクトを含む" not in html
+
+    def test_note_hidden_when_no_own_engagements(self) -> None:
+        """自社プロダクトが1件も無ければ、既定でも注記は出さない（事実と合わないため）。"""
+        es = [EngagementEntity(user_id=1, title="受託案件X", engagement_type="client")]
+        html = _svc()._build_html(es, None, anonymize=False)
+        assert "※年数・件数は自社プロダクトを含む" not in html
+
+    def test_title_equal_to_company_is_masked(self) -> None:
+        """案件名が企業名そのもの（[inv] 取込）でも実名が漏れない。"""
+        e = EngagementEntity(
+            user_id=1, title="[inv] 秘密株式会社", industry="製造業", company_name="秘密株式会社"
+        )
+        html = _svc()._render_engagement(e, 3, anonymize=True)
+        assert "秘密株式会社" not in html
+        assert "案件3：製造業" in html
+
+    def test_title_containing_company_is_masked(self) -> None:
+        """案件名に企業名が含まれる場合も見出しから落とす（部分一致）。"""
+        e = EngagementEntity(
+            user_id=1, title="[inv] 秘密株式会社の基幹刷新", industry="製造業", company_name="秘密株式会社"
+        )
+        html = _svc()._render_engagement(e, 4, anonymize=True)
+        assert "秘密株式会社" not in html
+
+    def test_title_masks_client_and_sier_names(self) -> None:
+        """client / sier の実名が案件名に入っていても伏せる。"""
+        e = EngagementEntity(
+            user_id=1, title="[inv] ナイショ商事の案件", industry="小売業", client="ナイショ商事"
+        )
+        assert "ナイショ商事" not in _svc()._render_engagement(e, 1, anonymize=True)
+        e2 = EngagementEntity(
+            user_id=1, title="[inv] ヒミツSIerの案件", industry="小売業", sier="ヒミツSIer"
+        )
+        assert "ヒミツSIer" not in _svc()._render_engagement(e2, 1, anonymize=True)
+
+    def test_harmless_title_kept_when_masked(self) -> None:
+        """実名を含まない案件名は、匿名化時も見出しとして残す（伏せすぎない）。"""
+        e = EngagementEntity(
+            user_id=1, title="[inv] 在庫管理システム刷新", industry="製造業", company_name="秘密株式会社"
+        )
+        html = _svc()._render_engagement(e, 1, anonymize=True)
+        assert "在庫管理システム刷新" in html
+        assert "秘密株式会社" not in html
+
+    def test_is_public_forces_mask_even_when_slider_off(self) -> None:
+        """is_public=True（公開向け）はスライダーOFFでも実名を出さない。"""
+        e = EngagementEntity(
+            user_id=1, title="[inv] 案件名", industry="保険業", company_name="出さない会社", is_public=True
+        )
+        html = _svc()._render_engagement(e, 1, anonymize=False)
+        assert "出さない会社" not in html
+
+    def test_go_and_ruby_rendered_in_skill_matrix(self) -> None:
+        """自社プロダクト由来の Go / Ruby / Rails がスキル表に出る。"""
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", engagement_type="own",
+                period_start="2024-01", period_end="2024-06",
+                tech_stack=["Go", "Ruby", "Rails"],
+            )
+        ]
+        html = _svc()._render_skill_matrix(es)
+        assert "Go" in html
+        assert "Ruby" in html
+        assert "Rails" in html
+
+    def test_hcl_is_folded_into_terraform(self) -> None:
+        """HCL は Terraform に名寄せし、同じスキルが2行に割れないようにする。"""
+        from apps.generation.application.services.resume_pdf_service import _canonical_tech
+
+        assert _canonical_tech("HCL") == "Terraform"
+        # Terraform は基盤技術(union×0.6)なので、表示下限(0.5年)を超える期間を与える。
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", period_start="2022-01", period_end="2023-12",
+                tech_stack=["HCL", "Terraform"],
+            )
+        ]
+        stats = [t for t, _y, _c in _svc()._aggregate_skill_years(es)]
+        assert stats.count("Terraform") == 1  # HCL と別行に割れない
+        assert "HCL" not in stats
+
+    def test_static_analysis_tools_rendered(self) -> None:
+        """静的解析(PHPStan/deptrac/packwerk)がスキル表に出る。"""
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", engagement_type="own",
+                period_start="2024-01", period_end="2024-06",
+                tech_stack=["PHPStan", "deptrac", "packwerk"],
+            )
+        ]
+        html = _svc()._render_skill_matrix(es)
+        assert "PHPStan" in html
+        assert "deptrac" in html
+        assert "packwerk" in html
+
     def test_intro_placeholder_when_no_summary(self) -> None:
         # プロフィール未入力でもヒーロー・スキルが描画され落ちない
         html = _svc()._render_summary([EngagementEntity(user_id=1, title="A")], None)
@@ -136,7 +339,8 @@ class TestResumePdfHtml:
             is_public=False,
         )
         html = _svc()._render_engagement(e, 1, anonymize=False)
-        assert '<span class="etitle">公開OK株式会社</span>' in html  # 見出しは企業名
+        # 非匿名時の見出しは「企業名 / 案件名」（_display_title の仕様）。
+        assert '<span class="etitle">公開OK株式会社 / 公開OK案件</span>' in html
         assert "[inv]" not in html  # 取込接頭辞は表示しない
         assert "人材サービス業" in html  # 業界はメタ行に出る
 
@@ -220,15 +424,82 @@ class TestResumePdfHtml:
         assert techs["Vue"][2] == 2  # 2案件に集約
 
     def test_skill_years_applies_tech_weights(self) -> None:
-        # tech_weights(関与度)を期間に掛ける。重み0.5なら年数は半分。
+        """tech_weights(関与度)を期間に掛ける。重み0.5なら年数は半分。
+
+        重み 1.0 は git 実測ではなく detected(存在検出)を意味するため、
+        _DETECTED_RATIO で割り引く（1.0 のまま計上すると Redis 等の
+        「使っただけ」の技術が主力言語と同じ年数になる）。
+        """
+        # PHP/Laravel は主力技術(_CORE_TECH)で割引対象外のため、非主力の Vue で検証する。
         e = EngagementEntity(
-            user_id=1, title="A", period_start="2022-01", period_end="2023-12", tech_stack=["PHP", "Python"]
+            user_id=1, title="A", period_start="2022-01", period_end="2023-12", tech_stack=["Vue", "Python"]
         )
-        e.tech_weights = {"PHP": 1.0, "Python": 0.5}
+        e.tech_weights = {"Vue": 1.0, "Python": 0.5}
         stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years([e])}
-        # 24ヶ月=2.0年。PHP=重み1.0→2.0年、Python=重み0.5→1.0年
-        assert stats["PHP"] == 2.0
+        # 24ヶ月=2.0年。Vue=detected(1.0)→2.0×0.4=0.8年、Python=実測0.5→1.0年
+        assert stats["Vue"] == 0.8
         assert stats["Python"] == 1.0
+
+    def test_core_tech_not_discounted(self) -> None:
+        """主力技術(PHP/Laravel)は detected 係数で割り引かず案件期間そのものを出す。
+
+        Laravel は 2017-09 以降ほぼ切れ目なく案件が続く主力なので、
+        「検出されただけ」の Redis と同じ係数で割ると実態から大きく外れる。
+        """
+        e = EngagementEntity(
+            user_id=1, title="A", period_start="2020-01", period_end="2023-12",
+            tech_stack=["Laravel", "Redis"],
+        )
+        e.tech_weights = {"Laravel": 1.0, "Redis": 1.0}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years([e])}
+        assert stats["Laravel"] == 4.0  # 48ヶ月フル（割り引かない）
+        assert stats["Redis"] == 1.6  # 48ヶ月 × 0.4
+
+    def test_core_tech_not_capped_by_manual_skills(self) -> None:
+        """主力技術は manual_skills による頭打ちを受けない。
+
+        PHP は案件ごとに 1.5/0.3 等の manual_skills が入っているが、これは
+        案件単位の値なので、これで全体年数が削られると 8.8年 が 1.5年 になる。
+        """
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", period_start="2018-01", period_end="2021-12", tech_stack=["PHP"]
+            ),
+            EngagementEntity(
+                user_id=1, title="B", period_start="2022-01", period_end="2023-12", tech_stack=["PHP"]
+            ),
+        ]
+        es[0].manual_skills = {"PHP": 1.5}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years(es)}
+        assert stats["PHP"] == 6.0  # 2018-01〜2023-12 の72ヶ月フル
+
+    def test_detected_weight_discounted_vs_measured(self) -> None:
+        """同じ期間でも detected(1.0) は git 実測(0.9)より低く出る。
+
+        「使った事実」より「実際に書いた量」を優先する、という年数モデルの意図。
+        """
+        e = EngagementEntity(
+            user_id=1, title="A", period_start="2020-01", period_end="2023-12", tech_stack=["Redis", "PHP"]
+        )
+        e.tech_weights = {"Redis": 1.0, "PHP": 0.9}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years([e])}
+        assert stats["PHP"] > stats["Redis"]
+
+    def test_ci_and_iac_treated_as_foundation(self) -> None:
+        """GitHub Actions/Terraform は「最初に組んで以降触らない」ので基盤技術扱い。"""
+        from apps.generation.application.services.resume_pdf_service import _FOUNDATION_TECH
+
+        assert "GitHub Actions" in _FOUNDATION_TECH
+        assert "Terraform" in _FOUNDATION_TECH
+        assert "Swagger" in _FOUNDATION_TECH
+        e = EngagementEntity(
+            user_id=1, title="A", period_start="2020-01", period_end="2023-12",
+            tech_stack=["GitHub Actions"],
+        )
+        e.tech_weights = {"GitHub Actions": 1.0}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years([e])}
+        # 48ヶ月(4.0年) × 0.6 = 2.4年。detected 係数ではなく基盤係数が適用される。
+        assert stats["GitHub Actions"] == 2.4
 
     def test_skill_years_weight_unset_is_full(self) -> None:
         # tech_weights 未設定の技術は重み1.0(前方互換: 従来どおりフルカウント)
@@ -243,16 +514,69 @@ class TestResumePdfHtml:
         stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years([e])}
         assert stats["pandas"] == 0.5
 
-    def test_foundation_tech_spans_career(self) -> None:
-        # 基盤技術(Docker/SQL等)は行数でなくキャリア全期間で年数を出す。
+    def test_foundation_tech_uses_used_engagements_not_career(self) -> None:
+        """基盤技術は「使った案件の期間 union × 係数」。行数重みには従わない。
+
+        旧実装はキャリア全期間フルカウントで、Docker を使っていない案件の期間まで
+        算入していた（Nginx 10.2年 等の過大評価）。Dockerfile は案件開始時に書いて
+        以降ほぼ触らないため、使った案件の期間にも係数を掛けて実態に寄せる。
+        """
         es = [
-            EngagementEntity(user_id=1, title="A", period_start="2020-01", period_end="2020-12", tech_stack=["Docker"]),
+            EngagementEntity(
+                user_id=1, title="A", period_start="2020-01", period_end="2021-12", tech_stack=["Docker"]
+            ),
             EngagementEntity(user_id=1, title="B", period_start="2023-01", period_end="2023-12", tech_stack=["PHP"]),
         ]
-        # Docker は重み0.001でも、基盤技術なのでキャリア全期間(2020-01〜2023-12=48ヶ月=4.0年)
+        # 重み0.001でも基盤技術なので重みは無視される。
         es[0].tech_weights = {"Docker": 0.001}
         stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years(es)}
-        assert stats["Docker"] == 4.0  # 行数重みでなくキャリア全期間
+        # 案件Aの24ヶ月(2.0年) × 係数0.6 = 1.2年。案件B(Docker未使用)の期間は入らない。
+        assert stats["Docker"] == 1.2
+
+    def test_low_year_skills_hidden(self) -> None:
+        """0.5年未満の技術はスキル表に出さない（0.0年の空バー行を作らない）。"""
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", period_start="2024-01", period_end="2024-02", tech_stack=["Go"]
+            )
+        ]
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years(es)}
+        assert "Go" not in stats  # 2ヶ月=0.2年なので非表示
+
+    def test_manual_skills_sum_across_engagements(self) -> None:
+        """同一技術が複数案件にあるとき、manual_skills は案件ごとに合算される。
+
+        旧実装は max() で最大の1案件分しか採らず、23案件やった PHP が 1.5年 に
+        なるという過少評価だった。
+        """
+        # 主力技術(PHP/Laravel)は manual_skills の頭打ちを受けないため、Python で検証する。
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", period_start="2020-01", period_end="2021-12", tech_stack=["Python"]
+            ),
+            EngagementEntity(
+                user_id=1, title="B", period_start="2022-01", period_end="2023-12", tech_stack=["Python"]
+            ),
+        ]
+        es[0].manual_skills = {"Python": 1.0}
+        es[1].manual_skills = {"Python": 1.0}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years(es)}
+        assert stats["Python"] == 2.0  # max(1.0) ではなく合算
+
+    def test_manual_skills_not_double_counted_on_overlap(self) -> None:
+        """期間が重なる案件の manual_skills は union なので二重に数えない。"""
+        es = [
+            EngagementEntity(
+                user_id=1, title="A", period_start="2024-01", period_end="2024-12", tech_stack=["Python"]
+            ),
+            EngagementEntity(
+                user_id=1, title="B", period_start="2024-01", period_end="2024-12", tech_stack=["Python"]
+            ),
+        ]
+        es[0].manual_skills = {"Python": 1.0}
+        es[1].manual_skills = {"Python": 1.0}
+        stats = {s[0]: s[1] for s in _svc()._aggregate_skill_years(es)}
+        assert stats["Python"] == 1.0  # 同一期間なので合算されない
 
     def test_non_tech_extensions_excluded(self) -> None:
         # env/conf/pem 等の設定・雑多ファイルはスキルに出さない。

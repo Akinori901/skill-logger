@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from apps.auth_cognito.application.services.cognito_jwt_verifier_service import CognitoJwtVerifierService
     from apps.auth_cognito.application.services.jit_provision_service import JitProvisionService
     from apps.auth_cognito.application.services.jwks_cache_service import JwksCacheService
+    from apps.auth_cognito.infrastructure.repositories.central_authz_repository import (
+        HttpCentralAuthzRepository,
+    )
     from apps.auth_cognito.infrastructure.repositories.django_cognito_repositories import (
         DjangoCognitoLinkRepository,
         DjangoUserAllowedEmailRepository,
@@ -327,10 +330,29 @@ def cognito_jwt_verifier_service() -> CognitoJwtVerifierService:
     )
 
 
+def central_authz_repository() -> HttpCentralAuthzRepository | None:
+    """共通認証基盤への問い合わせ口。未設定なら None（中央を使わない）。"""
+    from django.conf import settings
+
+    from apps.auth_cognito.infrastructure.repositories.central_authz_repository import (
+        HttpCentralAuthzRepository,
+    )
+
+    if not settings.CENTRAL_AUTHZ_URL:
+        return None
+
+    return HttpCentralAuthzRepository(
+        base_url=settings.CENTRAL_AUTHZ_URL,
+        timeout=settings.CENTRAL_AUTHZ_TIMEOUT,
+        cache_ttl=settings.CENTRAL_AUTHZ_CACHE_TTL,
+    )
+
+
 def jit_provision_service() -> JitProvisionService:
     from apps.auth_cognito.application.services.jit_provision_service import JitProvisionService
 
     return JitProvisionService(
         link_repo=cognito_link_repository(),
         allowed_repo=user_allowed_email_repository(),
+        central_repo=central_authz_repository(),
     )

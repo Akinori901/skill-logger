@@ -14,9 +14,12 @@ import {
   FormControlLabel,
   Stack,
   Switch,
+  Tab,
+  Tabs,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { generationApi } from "../api/generation";
 import { useDeleteEngagement, useEngagements } from "../hooks/useEngagements";
 import type { Engagement } from "../types/careers";
@@ -31,6 +34,22 @@ export default function EngagementListPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [anonymize, setAnonymize] = useState(true);
   const [hideName, setHideName] = useState(false);
+  // PDF に自社プロダクトの案件詳細を載せるか。既定 OFF＝外部参加案件だけを載せる。
+  // スキル年数・主要スキルチップ・バージョン表記は ON/OFF に関わらず常に全案件から集計する。
+  const [includeOwn, setIncludeOwn] = useState(false);
+  // 自社プロダクト / 受託・その他 / 全て のフィルタ。
+  // own = engagement_type==="own"、other = それ以外（受託・未分類）。
+  const [typeFilter, setTypeFilter] = useState<"all" | "own" | "other">("all");
+
+  const ownCount = useMemo(
+    () => engagements.filter((e) => e.engagement_type === "own").length,
+    [engagements],
+  );
+  const filtered = useMemo(() => {
+    if (typeFilter === "own") return engagements.filter((e) => e.engagement_type === "own");
+    if (typeFilter === "other") return engagements.filter((e) => e.engagement_type !== "own");
+    return engagements;
+  }, [engagements, typeFilter]);
 
   const openNew = () => {
     setEditing(null);
@@ -49,7 +68,7 @@ export default function EngagementListPage() {
   const exportPdf = async () => {
     setPdfLoading(true);
     try {
-      const blob = await generationApi.exportPdf(undefined, anonymize, hideName);
+      const blob = await generationApi.exportPdf(undefined, anonymize, hideName, includeOwn);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -83,6 +102,15 @@ export default function EngagementListPage() {
           label="氏名を伏せる"
           sx={{ mr: 1 }}
         />
+        <Tooltip title="OFF（既定）なら案件詳細は外部参加案件のみ。スキル年数は常に自社プロダクトも含めて集計します。">
+          <FormControlLabel
+            control={
+              <Switch size="small" checked={includeOwn} onChange={(e) => setIncludeOwn(e.target.checked)} />
+            }
+            label="自社プロダクトを含める"
+            sx={{ mr: 1 }}
+          />
+        </Tooltip>
         <Button
           startIcon={<PictureAsPdfIcon />}
           onClick={exportPdf}
@@ -96,18 +124,51 @@ export default function EngagementListPage() {
         </Button>
       </Box>
 
+      <Tabs
+        value={typeFilter}
+        onChange={(_, v) => setTypeFilter(v as "all" | "own" | "other")}
+        sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab value="all" label={`全て (${engagements.length})`} />
+        <Tab value="own" label={`自社プロダクト (${ownCount})`} />
+        <Tab value="other" label={`受託・その他 (${engagements.length - ownCount})`} />
+      </Tabs>
+
       {isLoading && <Typography>読み込み中...</Typography>}
-      {!isLoading && engagements.length === 0 && (
+      {!isLoading && filtered.length === 0 && (
         <Typography color="text.secondary">
-          まだ案件がありません。「案件を追加」から棚卸しを始めましょう。
+          {engagements.length === 0
+            ? "まだ案件がありません。「案件を追加」から棚卸しを始めましょう。"
+            : "この区分の案件はありません。"}
         </Typography>
       )}
 
       <Stack spacing={2}>
-        {engagements.map((e) => (
+        {filtered.map((e) => (
           <Card key={e.id} variant="outlined">
             <CardContent>
               <Typography variant="h6">
+                {e.engagement_type === "own" && (
+                  <Chip label="自社プロダクト" size="small" color="primary" sx={{ mr: 1, verticalAlign: "middle" }} />
+                )}
+                {e.engagement_type === "own" &&
+                  ((e.urls ?? []).some((u) => u.kind === "repo") ? (
+                    <Chip
+                      label="⭐ 公開リポ有"
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      sx={{ mr: 1, verticalAlign: "middle" }}
+                    />
+                  ) : (
+                    <Chip
+                      label="公開リポ未登録"
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      sx={{ mr: 1, verticalAlign: "middle" }}
+                    />
+                  ))}
                 {e.title}
                 {e.industry && (
                   <Typography component="span" color="text.secondary" sx={{ ml: 1 }}>
