@@ -13,11 +13,11 @@ s3_bucket_name    = "skilllogger-frontend"
 basic_auth_user = "CHANGE_ME"
 basic_auth_pass = "CHANGE_ME"
 
-# Cognito 認証（共通基盤 qol-user-pool の terraform output より）
+# Cognito 認証（共通基盤 cognito-auth-service の terraform output より）
 # 空のままだと認証は無効（CognitoJWTAuthentication が常に None を返す）。
 cognito_user_pool_id  = "ap-northeast-1_xxxxxxxxx"
 cognito_web_client_id = "xxxxxxxxxxxxxxxxxxxxxxxxxx"
-cognito_domain_prefix = "qol-auth"
+cognito_domain_prefix = "auth"
 # 初期管理者メール（seed が m_user_allowed_emails に登録。締め出し防止）。
 initial_admin_email = "you@example.com"
 

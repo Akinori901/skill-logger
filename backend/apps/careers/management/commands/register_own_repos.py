@@ -24,7 +24,7 @@ from config import container
 
 User = get_user_model()
 
-COMPANY = "QOL株式会社"
+COMPANY = "Example Inc."
 
 # 登録する自社公開リポ。period は public リポの初〜最新コミット（= 開発実体）。
 OWN_REPOS: list[dict[str, Any]] = [
@@ -104,7 +104,7 @@ OWN_LOCAL_PROJECTS: list[dict[str, Any]] = [
     {
         "project_key": "web_shop_creator_v2",
         "title": "ECモール連携システムのマイクロサービス化（自作ECの作り替え・25サービス）",
-        "local_path": "/Users/akinori/Documents/Projects/QOL/web-shop-creator-v2",
+        "local_path": "/path/to/projects/web-shop-creator-v2",
         "period_start": "",
         "period_end": "",
         "tech_stack": ["Python", "Django", "PHP", "Laravel", "React", "TypeScript", "AWS Lambda", "Docker"],

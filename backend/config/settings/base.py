@@ -115,7 +115,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # --- Django REST Framework ---
 #
 # 認証方針:
-#   共通 Cognito 認証（qol-user-pool）。CognitoJWTAuthentication が
+#   共通 Cognito 認証（cognito-auth-service）。CognitoJWTAuthentication が
 #   `Authorization: Bearer <cognito_jwt>` を検証し、JIT プロビジョニングで
 #   m_user_allowed_emails に許可登録済みのユーザーだけ通す（招待制）。
 REST_FRAMEWORK = {
@@ -135,14 +135,14 @@ REST_FRAMEWORK = {
 }
 
 # --- Cognito (OAuth) ---
-# 共通 Cognito 基盤 qol-user-pool の値。本番/ローカルとも env 経由で注入する。
+# 共通 Cognito 基盤 cognito-auth-service の値。本番/ローカルとも env 経由で注入する。
 # 未設定時（default=""）は CognitoJWTAuthentication が常に None を返し全 API が 401。
 COGNITO_USER_POOL_ID = env("COGNITO_USER_POOL_ID", default="")
 COGNITO_REGION = env("COGNITO_REGION", default="ap-northeast-1")
 COGNITO_WEB_CLIENT_ID = env("COGNITO_WEB_CLIENT_ID", default="")
 COGNITO_DOMAIN_PREFIX = env("COGNITO_DOMAIN_PREFIX", default="")
 
-# 同じ qol-user-pool を使う他サービス（例: Publicity/dev-branding の publicity-web-client）の
+# 同じ cognito-auth-service を使う他サービス（例: Publicity/dev-branding の publicity-web-client）の
 # client_id を追加で許可する。案件レジストリ連携で dev-branding から Engagement API を叩くため。
 # カンマ区切りで複数指定可。本番/ローカルとも env 経由で注入する。
 COGNITO_EXTRA_CLIENT_IDS = env.list("COGNITO_EXTRA_CLIENT_IDS", default=[])
@@ -163,10 +163,10 @@ COGNITO_JWT_ISSUER = (
 COGNITO_JWKS_URL = f"{COGNITO_JWT_ISSUER}/.well-known/jwks.json" if COGNITO_USER_POOL_ID else ""
 
 # 初期管理者メール（seed が m_user_allowed_emails に登録する。締め出し防止）。
-# qol-user-pool の initial_admin_email と一致させること。
+# cognito-auth-service の initial_admin_email と一致させること。
 INITIAL_ADMIN_EMAIL = env("INITIAL_ADMIN_EMAIL", default="")
 
-# --- 共通認証基盤（qol-auth-console）---
+# --- 共通認証基盤（auth-console）---
 # 空なら中央を使わず、従来どおり m_user_allowed_emails だけで判定する。
 # 移行中は「中央 OR m_user_allowed_emails」のどちらかで許可されれば通す
 # （どの時点でも締め出されないため）。

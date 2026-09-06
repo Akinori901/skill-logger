@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class CentralAuthzRepository(ABC):
-    """共通認証基盤（qol-auth-console）への認可問い合わせ。"""
+    """共通認証基盤（auth-console）への認可問い合わせ。"""
 
     @abstractmethod
     def fetch(self, email: str) -> CentralAuthzEntity | None:

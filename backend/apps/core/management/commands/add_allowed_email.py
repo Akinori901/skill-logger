@@ -1,6 +1,6 @@
 """Cognito ログイン許可 email を追加する管理コマンド。
 
-同じ qol-user-pool を使う別サービス（例: Publicity/dev-branding）から
+同じ cognito-auth-service を使う別サービス（例: Publicity/dev-branding）から
 案件レジストリ連携で SkillLogger API を叩く際、その利用者の email を
 m_user_allowed_emails に登録してログイン(JIT プロビジョニング)を通すために使う。
 
